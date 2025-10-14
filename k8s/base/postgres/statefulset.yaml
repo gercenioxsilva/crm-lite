@@ -1,0 +1,39 @@
+﻿apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: quiz
+spec:
+  selector:
+    matchLabels:
+      app: postgres
+  serviceName: postgres
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: quiz
+            - name: POSTGRES_USER
+              value: quiz
+            - name: POSTGRES_PASSWORD
+              value: quiz
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

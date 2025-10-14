@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM Fintech - Demo Interativo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px 20px; text-align: center; margin-bottom: 30px; border-radius: 10px; }
+        .nav { display: flex; gap: 10px; margin-bottom: 30px; justify-content: center; flex-wrap: wrap; }
+        .nav-btn { padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; transition: all 0.3s; }
+        .nav-btn:hover, .nav-btn.active { background: #764ba2; transform: translateY(-2px); }
+        .screen { display: none; background: white; border-radius: 10px; padding: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .screen.active { display: block; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 600; color: #333; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px; border: 2px solid #e1e5e9; border-radius: 5px; font-size: 14px; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #667eea; outline: none; }
+        .btn { padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; transition: all 0.3s; }
+        .btn:hover { background: #764ba2; transform: translateY(-2px); }
+        .btn-success { background: #28a745; }
+        .btn-success:hover { background: #218838; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 4px solid #667eea; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; text-align: center; }
+        .stat-number { font-size: 2.5em; font-weight: bold; margin-bottom: 5px; }
+        .pipeline { display: flex; gap: 20px; overflow-x: auto; padding: 20px 0; }
+        .stage { min-width: 300px; background: #f8f9fa; border-radius: 8px; padding: 15px; }
+        .stage-header { background: #667eea; color: white; padding: 10px; border-radius: 5px; margin-bottom: 15px; text-align: center; font-weight: bold; }
+        .lead-card { background: white; border-radius: 5px; padding: 15px; margin-bottom: 10px; border-left: 4px solid #28a745; cursor: pointer; transition: all 0.3s; }
+        .lead-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
+        .lead-name { font-weight: bold; margin-bottom: 5px; }
+        .lead-info { font-size: 12px; color: #666; margin-bottom: 3px; }
+        .priority { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: bold; color: white; }
+        .priority-high { background: #dc3545; }
+        .priority-medium { background: #ffc107; color: #000; }
+        .priority-low { background: #28a745; }
+        .temperature { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: bold; color: white; margin-left: 5px; }
+        .temp-hot { background: #dc3545; }
+        .temp-warm { background: #ffc107; color: #000; }
+        .temp-cold { background: #6c757d; }
+        .success-message { background: #d4edda; color: #155724; padding: 15px; border-radius: 5px; margin: 20px 0; border: 1px solid #c3e6cb; }
+        .table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .table th, .table td { padding: 12px; text-align: left; border-bottom: 1px solid #dee2e6; }
+        .table th { background: #f8f9fa; font-weight: 600; }
+        .table tbody tr:hover { background: #f8f9fa; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+        .modal.active { display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: white; border-radius: 10px; padding: 30px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; }
+        .close { float: right; font-size: 28px; font-weight: bold; cursor: pointer; color: #aaa; }
+        .close:hover { color: #000; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏦 CRM Fintech - Sistema Completo</h1>
+            <p>Demonstração interativa das funcionalidades do sistema</p>
+        </div>
+
+        <div class="nav">
+            <button class="nav-btn active" onclick="showScreen('landing')">Landing Page</button>
+            <button class="nav-btn" onclick="showScreen('dashboard')">Dashboard</button>
+            <button class="nav-btn" onclick="showScreen('leads')">Gestão de Leads</button>
+            <button class="nav-btn" onclick="showScreen('pipeline')">Pipeline</button>
+            <button class="nav-btn" onclick="showScreen('activities')">Atividades</button>
+        </div>
+
+        <!-- Landing Page -->
+        <div id="landing" class="screen active">
+            <h2>📋 Captura de Leads - Landing Page</h2>
+            <p>Formulário otimizado para conversão de visitantes em leads qualificados.</p>
+            
+            <div class="grid">
+                <div>
+                    <h3>Dados Pessoais</h3>
+                    <div class="form-group">
+                        <label>Nome Completo *</label>
+                        <input type="text" placeholder="João Silva Santos" value="João Silva Santos">
+                    </div>
+                    <div class="form-group">
+                        <label>Email *</label>
+                        <input type="email" placeholder="joao@email.com" value="joao@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Telefone</label>
+                        <input type="tel" placeholder="(11) 99999-9999" value="(11) 99999-9999">
+                    </div>
+                    <div class="form-group">
+                        <label>CPF</label>
+                        <input type="text" placeholder="000.000.000-00" value="123.456.789-00">
+                    </div>
+                </div>
+                
+                <div>
+                    <h3>Informações Profissionais</h3>
+                    <div class="form-group">
+                        <label>Empresa</label>
+                        <input type="text" placeholder="Tech Solutions Ltda" value="Tech Solutions Ltda">
+                    </div>
+                    <div class="form-group">
+                        <label>Cargo</label>
+                        <input type="text" placeholder="CTO" value="CTO">
+                    </div>
+                    <div class="form-group">
+                        <label>Renda Mensal</label>
+                        <select>
+                            <option>Até R$ 5.000</option>
+                            <option>R$ 5.001 - R$ 10.000</option>
+                            <option selected>R$ 10.001 - R$ 20.000</option>
+                            <option>Acima de R$ 20.000</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Valor do Negócio Esperado</label>
+                        <input type="number" placeholder="50000" value="50000">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" checked> Aceito os termos de uso e política de privacidade
+                </label>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" checked> Autorizo o tratamento dos meus dados pessoais (LGPD)
+                </label>
+            </div>
+            
+            <button class="btn btn-success" onclick="submitLead()">🚀 Quero ser contactado!</button>
+            
+            <div id="leadSuccess" class="success-message" style="display: none;">
+                ✅ Lead capturado com sucesso! Nossa equipe entrará em contato em breve.
+            </div>
+        </div>
+
+        <!-- Dashboard -->
+        <div id="dashboard" class="screen">
+            <h2>📊 Dashboard Executivo</h2>
+            <p>Visão geral dos indicadores de performance do CRM.</p>
+            
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number">1,247</div>
+                    <div>Total de Leads</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">45</div>
+                    <div>Leads Hoje</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">12.5%</div>
+                    <div>Taxa de Conversão</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">+8.3%</div>
+                    <div>Crescimento Mensal</div>
+                </div>
+            </div>
+            
+            <div class="grid">
+                <div class="card">
+                    <h3>📈 Leads por Dia (Última Semana)</h3>
+                    <canvas id="chartCanvas" width="400" height="200" style="border: 1px solid #ddd; border-radius: 5px;"></canvas>
+                </div>
+                <div class="card">
+                    <h3>🎯 Leads por Fonte</h3>
+                    <div style="margin-top: 20px;">
+                        <div style="margin-bottom: 10px;">
+                            <strong>Landing Page:</strong> 45% (562 leads)
+                            <div style="background: #667eea; height: 10px; width: 45%; border-radius: 5px; margin-top: 5px;"></div>
+                        </div>
+                        <div style="margin-bottom: 10px;">
+                            <strong>Google Ads:</strong> 30% (374 leads)
+                            <div style="background: #28a745; height: 10px; width: 30%; border-radius: 5px; margin-top: 5px;"></div>
+                        </div>
+                        <div style="margin-bottom: 10px;">
+                            <strong>Redes Sociais:</strong> 15% (187 leads)
+                            <div style="background: #ffc107; height: 10px; width: 15%; border-radius: 5px; margin-top: 5px;"></div>
+                        </div>
+                        <div>
+                            <strong>Indicação:</strong> 10% (124 leads)
+                            <div style="background: #dc3545; height: 10px; width: 10%; border-radius: 5px; margin-top: 5px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Leads Management -->
+        <div id="leads" class="screen">
+            <h2>👥 Gestão de Leads</h2>
+            <p>Lista completa de leads com filtros e ações em massa.</p>
+            
+            <div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <input type="text" placeholder="Buscar por nome ou email..." style="flex: 1; min-width: 200px;">
+                <select>
+                    <option>Todos os Status</option>
+                    <option>Novo</option>
+                    <option>Qualificado</option>
+                    <option>Proposta</option>
+                    <option>Fechado</option>
+                </select>
+                <select>
+                    <option>Todas as Fontes</option>
+                    <option>Landing</option>
+                    <option>Google</option>
+                    <option>Redes Sociais</option>
+                </select>
+                <button class="btn" onclick="showModal('newLeadModal')">+ Novo Lead</button>
+            </div>
+            
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Email</th>
+                        <th>Empresa</th>
+                        <th>Valor</th>
+                        <th>Status</th>
+                        <th>Prioridade</th>
+                        <th>Temperatura</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>João Silva Santos</strong></td>
+                        <td>joao@email.com</td>
+                        <td>Tech Solutions</td>
+                        <td>R$ 50.000</td>
+                        <td><span class="priority priority-medium">Qualificado</span></td>
+                        <td><span class="priority priority-high">Alta</span></td>
+                        <td><span class="temperature temp-hot">Quente</span></td>
+                        <td>
+                            <button class="btn" style="padding: 5px 10px; font-size: 12px;" onclick="showModal('editLeadModal')">Editar</button>
+                            <button class="btn" style="padding: 5px 10px; font-size: 12px;" onclick="showModal('activityModal')">Atividade</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Ana Paula Ferreira</strong></td>
+                        <td>ana@startup.com</td>
+                        <td>Startup Fintech</td>
+                        <td>R$ 30.000</td>
+                        <td><span class="priority priority-low">Novo</span></td>
+                        <td><span class="priority priority-medium">Média</span></td>
+                        <td><span class="temperature temp-warm">Morno</span></td>
+                        <td>
+                            <button class="btn" style="padding: 5px 10px; font-size: 12px;">Editar</button>
+                            <button class="btn" style="padding: 5px 10px; font-size: 12px;">Atividade</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Carlos Eduardo Lima</strong></td>
+                        <td>carlos@empresa.com</td>
+                        <td>Consultoria Digital</td>
+                        <td>R$ 75.000</td>
+                        <td><span class="priority priority-high">Proposta</span></td>
+                        <td><span class="priority priority-high">Alta</span></td>
+                        <td><span class="temperature temp-hot">Quente</span></td>
+                        <td>
+                            <button class="btn" style="padding: 5px 10px; font-size: 12px;">Editar</button>
+                            <button class="btn" style="padding: 5px 10px; font-size: 12px;">Atividade</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pipeline -->
+        <div id="pipeline" class="screen">
+            <h2>🔄 Pipeline de Vendas</h2>
+            <p>Visualização Kanban do funil de vendas com drag & drop.</p>
+            
+            <div class="pipeline">
+                <div class="stage">
+                    <div class="stage-header">Novo Lead (3)</div>
+                    <div class="lead-card" draggable="true">
+                        <div class="lead-name">Ana Paula Ferreira</div>
+                        <div class="lead-info">📧 ana@startup.com</div>
+                        <div class="lead-info">🏢 Startup Fintech</div>
+                        <div class="lead-info">💰 R$ 30.000</div>
+                        <div style="margin-top: 8px;">
+                            <span class="priority priority-medium">Média</span>
+                            <span class="temperature temp-warm">Morno</span>
+                        </div>
+                    </div>
+                    <div class="lead-card" draggable="true">
+                        <div class="lead-name">Roberto Santos</div>
+                        <div class="lead-info">📧 roberto@tech.com</div>
+                        <div class="lead-info">🏢 Tech Corp</div>
+                        <div class="lead-info">💰 R$ 25.000</div>
+                        <div style="margin-top: 8px;">
+                            <span class="priority priority-low">Baixa</span>
+                            <span class="temperature temp-cold">Frio</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="stage">
+                    <div class="stage-header" style="background: #28a745;">Qualificado (2)</div>
+                    <div class="lead-card" draggable="true">
+                        <div class="lead-name">João Silva Santos</div>
+                        <div class="lead-info">📧 joao@email.com</div>
+                        <div class="lead-info">🏢 Tech Solutions</div>
+                        <div class="lead-info">💰 R$ 50.000</div>
+                        <div class="lead-info">📅 Próximo contato: 15/01</div>
+                        <div style="margin-top: 8px;">
+                            <span class="priority priority-high">Alta</span>
+                            <span class="temperature temp-hot">Quente</span>
+                        </div>
+                    </div>
+                    <div class="lead-card" draggable="true">
+                        <div class="lead-name">Maria Oliveira</div>
+                        <div class="lead-info">📧 maria@inovacao.com</div>
+                        <div class="lead-info">🏢 Inovação Digital</div>
+                        <div class="lead-info">💰 R$ 40.000</div>
+                        <div style="margin-top: 8px;">
+                            <span class="priority priority-medium">Média</span>
+                            <span class="temperature temp-warm">Morno</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="stage">
+                    <div class="stage-header" style="background: #ffc107; color: #000;">Proposta (1)</div>
+                    <div class="lead-card" draggable="true">
+                        <div class="lead-name">Carlos Eduardo Lima</div>
+                        <div class="lead-info">📧 carlos@empresa.com</div>
+                        <div class="lead-info">🏢 Consultoria Digital</div>
+                        <div class="lead-info">💰 R$ 75.000</div>
+                        <div class="lead-info">📅 Apresentação: 18/01</div>
+                        <div style="margin-top: 8px;">
+                            <span class="priority priority-high">Alta</span>
+                            <span class="temperature temp-hot">Quente</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="stage">
+                    <div class="stage-header" style="background: #dc3545;">Negociação (0)</div>
+                    <div style="text-align: center; color: #666; padding: 20px;">
+                        Nenhum lead nesta etapa
+                    </div>
+                </div>
+                
+                <div class="stage">
+                    <div class="stage-header" style="background: #6f42c1;">Fechado (1)</div>
+                    <div class="lead-card">
+                        <div class="lead-name">Pedro Almeida</div>
+                        <div class="lead-info">📧 pedro@sucesso.com</div>
+                        <div class="lead-info">🏢 Sucesso Empresarial</div>
+                        <div class="lead-info">💰 R$ 60.000</div>
+                        <div class="lead-info">✅ Fechado em 10/01</div>
+                        <div style="margin-top: 8px;">
+                            <span class="priority priority-high">Alta</span>
+                            <span class="temperature temp-hot">Quente</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activities -->
+        <div id="activities" class="screen">
+            <h2>📋 Atividades e Follow-ups</h2>
+            <p>Histórico de interações e próximas ações planejadas.</p>
+            
+            <div style="margin-bottom: 20px;">
+                <button class="btn" onclick="showModal('activityModal')">+ Nova Atividade</button>
+            </div>
+            
+            <div class="grid">
+                <div class="card">
+                    <h3>🔥 Atividades Pendentes</h3>
+                    <div style="margin-top: 15px;">
+                        <div style="border-left: 4px solid #dc3545; padding-left: 15px; margin-bottom: 15px;">
+                            <strong>Ligação para João Silva</strong><br>
+                            <small>📅 Hoje, 14:00 - Apresentar proposta comercial</small>
+                        </div>
+                        <div style="border-left: 4px solid #ffc107; padding-left: 15px; margin-bottom: 15px;">
+                            <strong>Email para Ana Paula</strong><br>
+                            <small>📅 Amanhã, 09:00 - Enviar material técnico</small>
+                        </div>
+                        <div style="border-left: 4px solid #28a745; padding-left: 15px;">
+                            <strong>Reunião com Carlos</strong><br>
+                            <small>📅 18/01, 15:00 - Apresentação da proposta</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h3>✅ Atividades Recentes</h3>
+                    <div style="margin-top: 15px;">
+                        <div style="border-left: 4px solid #6c757d; padding-left: 15px; margin-bottom: 15px;">
+                            <strong>Ligação realizada - João Silva</strong><br>
+                            <small>📅 Ontem, 16:30 - Lead interessado, agendar apresentação</small>
+                        </div>
+                        <div style="border-left: 4px solid #6c757d; padding-left: 15px; margin-bottom: 15px;">
+                            <strong>Email enviado - Maria Oliveira</strong><br>
+                            <small>📅 12/01, 10:15 - Material de qualificação enviado</small>
+                        </div>
+                        <div style="border-left: 4px solid #6c757d; padding-left: 15px;">
+                            <strong>Reunião realizada - Pedro Almeida</strong><br>
+                            <small>📅 10/01, 14:00 - Negócio fechado! 🎉</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="newLeadModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="hideModal('newLeadModal')">&times;</span>
+            <h3>Novo Lead</h3>
+            <div class="form-group">
+                <label>Nome *</label>
+                <input type="text" placeholder="Nome completo">
+            </div>
+            <div class="form-group">
+                <label>Email *</label>
+                <input type="email" placeholder="email@exemplo.com">
+            </div>
+            <div class="form-group">
+                <label>Empresa</label>
+                <input type="text" placeholder="Nome da empresa">
+            </div>
+            <div class="form-group">
+                <label>Valor Esperado</label>
+                <input type="number" placeholder="50000">
+            </div>
+            <button class="btn btn-success">Criar Lead</button>
+        </div>
+    </div>
+
+    <div id="editLeadModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="hideModal('editLeadModal')">&times;</span>
+            <h3>Editar Lead - João Silva Santos</h3>
+            <div class="form-group">
+                <label>Nome *</label>
+                <input type="text" value="João Silva Santos">
+            </div>
+            <div class="form-group">
+                <label>Email *</label>
+                <input type="email" value="joao@email.com">
+            </div>
+            <div class="form-group">
+                <label>Empresa</label>
+                <input type="text" value="Tech Solutions">
+            </div>
+            <div class="form-group">
+                <label>Valor Esperado</label>
+                <input type="number" value="50000">
+            </div>
+            <div class="form-group">
+                <label>Prioridade</label>
+                <select>
+                    <option>Baixa</option>
+                    <option>Média</option>
+                    <option selected>Alta</option>
+                    <option>Urgente</option>
+                </select>
+            </div>
+            <button class="btn btn-success">Salvar Alterações</button>
+        </div>
+    </div>
+
+    <div id="activityModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="hideModal('activityModal')">&times;</span>
+            <h3>Nova Atividade</h3>
+            <div class="form-group">
+                <label>Lead</label>
+                <select>
+                    <option>João Silva Santos</option>
+                    <option>Ana Paula Ferreira</option>
+                    <option>Carlos Eduardo Lima</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Tipo de Atividade</label>
+                <select>
+                    <option>Ligação</option>
+                    <option>Email</option>
+                    <option>Reunião</option>
+                    <option>WhatsApp</option>
+                    <option>Proposta</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Descrição</label>
+                <textarea placeholder="Descreva a atividade realizada ou planejada..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>Data/Hora</label>
+                <input type="datetime-local">
+            </div>
+            <button class="btn btn-success">Salvar Atividade</button>
+        </div>
+    </div>
+
+    <script>
+        function showScreen(screenId) {
+            // Hide all screens
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            
+            // Remove active class from all nav buttons
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected screen
+            document.getElementById(screenId).classList.add('active');
+            
+            // Add active class to clicked button
+            event.target.classList.add('active');
+            
+            // Draw chart if dashboard is shown
+            if (screenId === 'dashboard') {
+                setTimeout(drawChart, 100);
+            }
+        }
+
+        function showModal(modalId) {
+            document.getElementById(modalId).classList.add('active');
+        }
+
+        function hideModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        function submitLead() {
+            document.getElementById('leadSuccess').style.display = 'block';
+            setTimeout(() => {
+                document.getElementById('leadSuccess').style.display = 'none';
+            }, 5000);
+        }
+
+        function drawChart() {
+            const canvas = document.getElementById('chartCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Chart data
+            const data = [45, 52, 38, 61, 55, 28, 22];
+            const labels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom'];
+            
+            // Chart dimensions
+            const padding = 40;
+            const chartWidth = canvas.width - 2 * padding;
+            const chartHeight = canvas.height - 2 * padding;
+            const maxValue = Math.max(...data);
+            
+            // Draw bars
+            const barWidth = chartWidth / data.length;
+            
+            data.forEach((value, index) => {
+                const barHeight = (value / maxValue) * chartHeight;
+                const x = padding + index * barWidth + barWidth * 0.1;
+                const y = canvas.height - padding - barHeight;
+                
+                // Draw bar
+                ctx.fillStyle = '#667eea';
+                ctx.fillRect(x, y, barWidth * 0.8, barHeight);
+                
+                // Draw value on top
+                ctx.fillStyle = '#333';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(value, x + barWidth * 0.4, y - 5);
+                
+                // Draw label
+                ctx.fillText(labels[index], x + barWidth * 0.4, canvas.height - padding + 20);
+            });
+        }
+
+        // Initialize chart on page load
+        window.addEventListener('load', () => {
+            if (document.getElementById('dashboard').classList.contains('active')) {
+                drawChart();
+            }
+        });
+
+        // Close modals when clicking outside
+        window.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) {
+                e.target.classList.remove('active');
+            }
+        });
+
+        // Add drag and drop functionality to pipeline
+        document.addEventListener('DOMContentLoaded', () => {
+            const leadCards = document.querySelectorAll('.lead-card[draggable="true"]');
+            const stages = document.querySelectorAll('.stage');
+            
+            leadCards.forEach(card => {
+                card.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('text/plain', '');
+                    card.style.opacity = '0.5';
+                });
+                
+                card.addEventListener('dragend', () => {
+                    card.style.opacity = '1';
+                });
+            });
+            
+            stages.forEach(stage => {
+                stage.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    stage.style.backgroundColor = '#e3f2fd';
+                });
+                
+                stage.addEventListener('dragleave', () => {
+                    stage.style.backgroundColor = '#f8f9fa';
+                });
+                
+                stage.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    stage.style.backgroundColor = '#f8f9fa';
+                    // Here you would implement the actual move logic
+                    alert('Lead movido para: ' + stage.querySelector('.stage-header').textContent);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

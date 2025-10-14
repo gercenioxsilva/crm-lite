@@ -1,0 +1,13 @@
+﻿apiVersion: v1
+kind: Service
+metadata:
+  name: backoffice
+  namespace: quiz
+spec:
+  type: ClusterIP
+  selector:
+    app: backoffice
+  ports:
+    - name: http
+      port: 3030
+      targetPort: 3030

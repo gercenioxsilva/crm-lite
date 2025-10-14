@@ -1,0 +1,13 @@
+﻿apiVersion: v1
+kind: Service
+metadata:
+  name: landing
+  namespace: quiz
+spec:
+  type: ClusterIP
+  selector:
+    app: landing
+  ports:
+    - name: http
+      port: 3010
+      targetPort: 3010

@@ -1,0 +1,13 @@
+﻿apiVersion: v1
+kind: Service
+metadata:
+  name: leads
+  namespace: quiz
+spec:
+  type: ClusterIP
+  selector:
+    app: leads
+  ports:
+    - name: http
+      port: 3020
+      targetPort: 3020

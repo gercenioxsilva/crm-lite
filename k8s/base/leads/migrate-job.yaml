@@ -1,0 +1,20 @@
+﻿apiVersion: batch/v1
+kind: Job
+metadata:
+  name: leads-migrate
+  namespace: quiz
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: leads-migrate
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: ghcr.io/your-org/quiz-leads:latest
+          env:
+            - name: DATABASE_URL
+              value: postgres://quiz:quiz@postgres:5432/quiz
+          command: ["node","dist/scripts/migrate.js"]

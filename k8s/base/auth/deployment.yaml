@@ -1,0 +1,27 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth
+  namespace: quiz
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth
+  template:
+    metadata:
+      labels:
+        app: auth
+    spec:
+      containers:
+        - name: auth
+          image: ghcr.io/your-org/quiz-auth:latest
+          ports:
+            - containerPort: 3050
+          env:
+            - name: AUTH_JWT_SECRET
+              value: changeme-dev-secret
+            - name: AUTH_TOKEN_TTL
+              value: "3600"
+            - name: AUTH_CLIENTS
+              value: '[{"client_id":"frontend","client_secret":"frontend-secret","scopes":["leads:read","leads:write"]}]'

@@ -1,0 +1,39 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: leads
+  namespace: quiz
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: leads
+  template:
+    metadata:
+      labels:
+        app: leads
+    spec:
+      containers:
+        - name: leads
+          image: ghcr.io/your-org/quiz-leads:latest
+          ports:
+            - containerPort: 3020
+          env:
+            - name: LEADS_PORT
+              value: "3020"
+            - name: AUTH_JWT_SECRET
+              value: changeme-dev-secret
+            - name: DATABASE_URL
+              value: postgres://quiz:quiz@postgres:5432/quiz
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3020
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3020
+            initialDelaySeconds: 10
+            periodSeconds: 20

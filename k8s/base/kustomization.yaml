@@ -1,0 +1,21 @@
+﻿apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: quiz
+resources:
+  - namespace.yaml
+  - postgres/statefulset.yaml
+  - postgres/service.yaml
+  - auth/deployment.yaml
+  - auth/service.yaml
+  - api-gateway/deployment.yaml
+  - api-gateway/service.yaml
+  - landing/deployment.yaml
+  - landing/service.yaml
+  - leads/deployment.yaml
+  - leads/service.yaml
+  - backoffice/deployment.yaml
+  - backoffice/service.yaml
+
+
+  - leads/migrate-job.yaml
+

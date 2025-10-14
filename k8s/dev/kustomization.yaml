@@ -1,0 +1,17 @@
+﻿apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: quiz
+resources:
+  - ../base
+# Edit below to point to your registry/tags
+images:
+  - name: ghcr.io/your-org/quiz-api-gateway
+    newTag: latest
+  - name: ghcr.io/your-org/quiz-landing
+    newTag: latest
+  - name: ghcr.io/your-org/quiz-leads
+    newTag: latest
+  - name: ghcr.io/your-org/quiz-backoffice
+    newTag: latest
+  - name: ghcr.io/your-org/quiz-social
+    newTag: latest

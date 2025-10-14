@@ -1,0 +1,37 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backoffice
+  namespace: quiz
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backoffice
+  template:
+    metadata:
+      labels:
+        app: backoffice
+    spec:
+      containers:
+        - name: backoffice
+          image: ghcr.io/your-org/quiz-backoffice:latest
+          ports:
+            - containerPort: 3030
+          env:
+            - name: BACKOFFICE_PORT
+              value: "3030"
+            - name: AUTH_JWT_SECRET
+              value: changeme-dev-secret
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3030
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3030
+            initialDelaySeconds: 10
+            periodSeconds: 20

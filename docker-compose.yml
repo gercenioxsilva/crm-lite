@@ -1,0 +1,78 @@
+﻿services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-quiz}
+      - POSTGRES_USER=${POSTGRES_USER:-quiz}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-quiz}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB && psql -U $$POSTGRES_USER -d $$POSTGRES_DB -c 'SELECT 1'"]
+      interval: 3s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
+
+  auth:
+    build: ./services/auth
+    ports:
+      - "${AUTH_PORT:-3050}:3050"
+    env_file:
+      - ./.env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api-gateway:
+    build: ./services/api-gateway
+    ports:
+      - "${API_GATEWAY_PORT:-3000}:3000"
+    env_file:
+      - ./.env
+    depends_on:
+      - auth
+      - leads
+
+  landing:
+    build: ./services/landing-react
+    ports:
+      - "${LANDING_PORT:-3010}:80"
+    env_file:
+      - ./.env
+
+  leads:
+    build: ./services/leads
+    ports:
+      - "${LEADS_PORT:-3020}:3020"
+    env_file:
+      - ./.env
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - default
+
+  leads-migrate:
+    build: ./services/leads
+    env_file:
+      - ./.env
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: ["sh", "-c", "sleep 5 && npm run migrate"]
+    restart: "no"
+
+  backoffice:
+    build: ./services/backoffice-react
+    ports:
+      - "${BACKOFFICE_PORT:-3030}:80"
+    env_file:
+      - ./.env
+
+
+
+volumes:
+  db_data:

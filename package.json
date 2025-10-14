@@ -1,0 +1,24 @@
+﻿{
+    "name":  "quiz-microservices",
+    "private":  true,
+    "workspaces":  [
+                       "services/*"
+                   ],
+    "scripts":  {
+                    "build:all":  "npm --workspaces --if-present run build",
+                    "build":  "echo Use service-level build scripts",
+                    "dev:landing":  "npm --workspace services/landing-react run dev",
+                    "dev:backoffice":  "npm --workspace services/backoffice-react run dev",
+                    "dev":  "echo Use service-level dev scripts",
+                    "test:leads":  "npm --workspace services/leads test",
+                
+                    "dev:gateway":  "npm --workspace services/api-gateway run dev",
+                    "dev:auth":  "npm --workspace services/auth run dev",
+                    "dev:leads":  "npm --workspace services/leads run dev"
+                },
+    "devDependencies":  {
+                            "jest":  "^29.7.0",
+                            "ts-jest":  "^29.2.5",
+                            "@types/jest":  "^29.5.12"
+                        }
+}
