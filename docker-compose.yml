@@ -107,6 +107,21 @@
       - mongo
     restart: unless-stopped
 
+  whatsapp:
+    build: ./services/whatsapp
+    ports:
+      - "${WHATSAPP_PORT:-3050}:3050"
+    environment:
+      - WHATSAPP_PORT=3050
+      - WHATSAPP_USE_MOCK=${WHATSAPP_USE_MOCK:-true}
+      - WHATSAPP_ACCESS_TOKEN=${WHATSAPP_ACCESS_TOKEN:-}
+      - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID:-}
+      - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN:-quiz-whatsapp-token}
+      - LEADS_SERVICE_URL=http://leads:3020
+    depends_on:
+      - leads
+    restart: unless-stopped
+
 volumes:
   db_data:
   mongo_data:

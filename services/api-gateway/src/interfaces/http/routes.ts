@@ -143,9 +143,26 @@ export async function registerRoutes(app: FastifyInstance){
       priority: body.priority || 'medium',
       terms_accepted: body.termsAccepted,
       consent_lgpd: body.consentLgpd,
-      source: body.source || 'landing'
+      source: body.source || 'landing',
+      customFields: body.customFields || {}
     });
     return { success: true, lead };
+  });
+
+  // Get custom fields for public forms
+  app.get('/public/custom-fields', { schema: { tags: ['public'], summary: 'Get active custom fields' } as any }, async (req) => {
+    try {
+      const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/custom-fields`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching custom fields:', error);
+      return [];
+    }
   });
 
   app.post('/public/leads/google', { schema: { tags: ['public','leads'], summary: 'Create lead from Google ID token' } as any }, async (req) => {
@@ -426,6 +443,8 @@ export async function registerRoutes(app: FastifyInstance){
       const body = (req.body as any) || {};
       
       try {
+        console.log('Creating activity:', body);
+        
         const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/activities`, {
           method: 'POST',
           headers: {
@@ -434,20 +453,24 @@ export async function registerRoutes(app: FastifyInstance){
           body: JSON.stringify({
             lead_id: body.leadId,
             type: body.type,
+            subject: body.description?.substring(0, 100) || null,
             description: body.description,
-            outcome: body.outcome,
-            follow_up_required: body.follow_up_required,
-            next_action: body.next_action,
-            duration_minutes: body.duration_minutes,
+            outcome: body.outcome || null,
+            follow_up_required: body.follow_up_required || false,
+            next_action: body.next_action || null,
+            duration_minutes: body.duration_minutes || null,
+            created_by: 'backoffice'
           })
         });
         
         if (!response.ok) {
           const errorText = await response.text();
+          console.error('Error response from leads service:', errorText);
           throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
         
         const activity = await response.json();
+        console.log('Activity created successfully:', activity);
         
         // Send email if it's an email activity
         if (body.type === 'email' && body.emailContent) {
@@ -539,6 +562,215 @@ export async function registerRoutes(app: FastifyInstance){
       } catch (error) {
         console.error('Error fetching pipeline:', error);
         return [];
+      }
+    });
+
+    // WhatsApp routes
+    app.post('/whatsapp/send-message', {
+      preHandler: [requireScope('leads:write')],
+      schema: { tags: ['whatsapp'], summary: 'Send WhatsApp message', security: [{ bearerAuth: [] }] } as any
+    }, async (req) => {
+      const body = (req.body as any) || {};
+      
+      try {
+        const response = await fetch(`${process.env.WHATSAPP_BASE_URL || 'http://whatsapp:3050'}/send-message`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body)
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Error sending WhatsApp message:', error);
+        throw error;
+      }
+    });
+
+    app.post('/whatsapp/leads/:id/welcome', {
+      preHandler: [requireScope('leads:write')],
+      schema: { tags: ['whatsapp'], summary: 'Send welcome WhatsApp', security: [{ bearerAuth: [] }] } as any
+    }, async (req) => {
+      const { id } = req.params as any;
+      const body = (req.body as any) || {};
+      
+      try {
+        const response = await fetch(`${process.env.WHATSAPP_BASE_URL || 'http://whatsapp:3050'}/leads/${id}/welcome`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body)
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Error sending welcome WhatsApp:', error);
+        throw error;
+      }
+    });
+
+    app.post('/whatsapp/leads/:id/follow-up', {
+      preHandler: [requireScope('leads:write')],
+      schema: { tags: ['whatsapp'], summary: 'Send follow-up WhatsApp', security: [{ bearerAuth: [] }] } as any
+    }, async (req) => {
+      const { id } = req.params as any;
+      const body = (req.body as any) || {};
+      
+      try {
+        const response = await fetch(`${process.env.WHATSAPP_BASE_URL || 'http://whatsapp:3050'}/leads/${id}/follow-up`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body)
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Error sending follow-up WhatsApp:', error);
+        throw error;
+      }
+    });
+
+    app.post('/whatsapp/leads/:id/qualification', {
+      preHandler: [requireScope('leads:write')],
+      schema: { tags: ['whatsapp'], summary: 'Send qualification WhatsApp', security: [{ bearerAuth: [] }] } as any
+    }, async (req) => {
+      const { id } = req.params as any;
+      const body = (req.body as any) || {};
+      
+      try {
+        const response = await fetch(`${process.env.WHATSAPP_BASE_URL || 'http://whatsapp:3050'}/leads/${id}/qualification`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body)
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Error sending qualification WhatsApp:', error);
+        throw error;
+      }
+    });
+
+    // Custom Fields Management
+    app.get('/backoffice/custom-fields', {
+      preHandler: [requireScope('leads:read')],
+      schema: { tags: ['backoffice'], summary: 'Get custom fields', security: [{ bearerAuth: [] }] } as any
+    }, async (req) => {
+      try {
+        const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/custom-fields`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Error fetching custom fields:', error);
+        return [];
+      }
+    });
+
+    app.post('/backoffice/custom-fields', {
+      preHandler: [requireScope('leads:write')],
+      schema: { tags: ['backoffice'], summary: 'Create custom field', security: [{ bearerAuth: [] }] } as any
+    }, async (req) => {
+      const body = (req.body as any) || {};
+      
+      try {
+        const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/custom-fields`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body)
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Error creating custom field:', error);
+        throw error;
+      }
+    });
+
+    app.put('/backoffice/custom-fields/:id', {
+      preHandler: [requireScope('leads:write')],
+      schema: { tags: ['backoffice'], summary: 'Update custom field', security: [{ bearerAuth: [] }] } as any
+    }, async (req) => {
+      const { id } = req.params as any;
+      const body = (req.body as any) || {};
+      
+      try {
+        const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/custom-fields/${id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body)
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Error updating custom field:', error);
+        throw error;
+      }
+    });
+
+    app.delete('/backoffice/custom-fields/:id', {
+      preHandler: [requireScope('leads:write')],
+      schema: { tags: ['backoffice'], summary: 'Delete custom field', security: [{ bearerAuth: [] }] } as any
+    }, async (req) => {
+      const { id } = req.params as any;
+      
+      try {
+        const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/custom-fields/${id}`, {
+          method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Error deleting custom field:', error);
+        throw error;
       }
     });
   });

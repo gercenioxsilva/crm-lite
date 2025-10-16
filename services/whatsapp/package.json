@@ -1,0 +1,23 @@
+{
+  "name": "@quiz/whatsapp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p .",
+    "start": "node dist/index.js",
+    "dev": "node -r ts-node/register src/index.ts",
+    "debug": "node --inspect=0.0.0.0:9240 -r ts-node/register src/index.ts"
+  },
+  "dependencies": {
+    "fastify": "^4.29.1",
+    "@fastify/cors": "^9.0.1",
+    "axios": "^1.6.0",
+    "ts-node": "^10.9.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.2",
+    "@types/node": "^20.0.0"
+  }
+}

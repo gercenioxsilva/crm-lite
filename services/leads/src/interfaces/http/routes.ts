@@ -72,6 +72,23 @@ export async function registerRoutes(app: FastifyInstance) {
       `;
       await pool.query(pipelineQuery, [lead.id]);
 
+      // Save custom field values
+      if (body.customFields && typeof body.customFields === 'object') {
+        for (const [fieldName, fieldValue] of Object.entries(body.customFields)) {
+          if (fieldValue !== null && fieldValue !== undefined && fieldValue !== '') {
+            const customFieldQuery = `
+              INSERT INTO lead_custom_values (lead_id, custom_field_id, value)
+              SELECT $1, cf.id, $2
+              FROM custom_fields cf
+              WHERE cf.name = $3 AND cf.is_active = true
+              ON CONFLICT (lead_id, custom_field_id) 
+              DO UPDATE SET value = $2, updated_at = now()
+            `;
+            await pool.query(customFieldQuery, [lead.id, String(fieldValue), fieldName]);
+          }
+        }
+      }
+
       reply.code(201);
       return {
         id: lead.id,
@@ -79,7 +96,8 @@ export async function registerRoutes(app: FastifyInstance) {
         email: lead.email,
         source: lead.source,
         status: lead.status,
-        created_at: lead.created_at
+        created_at: lead.created_at,
+        custom_fields_saved: body.customFields ? Object.keys(body.customFields).length : 0
       };
     } catch (error: any) {
       app.log.error(error);
@@ -429,6 +447,146 @@ export async function registerRoutes(app: FastifyInstance) {
       }
       
       return { success: true, leadId: id, stageId };
+    } catch (error: any) {
+      app.log.error(error);
+      reply.code(500);
+      return { error: 'Internal server error' };
+    }
+  });
+
+  // Custom Fields Management
+  app.get('/custom-fields', async (req, reply) => {
+    try {
+      const result = await pool.query('SELECT * FROM get_active_custom_fields()');
+      return result.rows;
+    } catch (error: any) {
+      app.log.error(error);
+      reply.code(500);
+      return { error: 'Internal server error' };
+    }
+  });
+
+  app.post('/custom-fields', async (req, reply) => {
+    try {
+      const body = req.body as any;
+      
+      const query = `
+        INSERT INTO custom_fields (
+          name, label, field_type, is_required, placeholder, 
+          help_text, options, validation_rules, display_order
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        RETURNING *
+      `;
+      
+      const values = [
+        body.name,
+        body.label,
+        body.field_type,
+        body.is_required || false,
+        body.placeholder || null,
+        body.help_text || null,
+        body.options || null,
+        body.validation_rules || null,
+        body.display_order || 0
+      ];
+      
+      const result = await pool.query(query, values);
+      reply.code(201);
+      return result.rows[0];
+    } catch (error: any) {
+      app.log.error(error);
+      reply.code(500);
+      return { error: 'Internal server error' };
+    }
+  });
+
+  app.put('/custom-fields/:id', async (req, reply) => {
+    try {
+      const { id } = req.params as { id: string };
+      const body = req.body as any;
+      
+      const query = `
+        UPDATE custom_fields 
+        SET label = $1, field_type = $2, is_required = $3, 
+            placeholder = $4, help_text = $5, options = $6, 
+            validation_rules = $7, display_order = $8, updated_at = now()
+        WHERE id = $9
+        RETURNING *
+      `;
+      
+      const values = [
+        body.label,
+        body.field_type,
+        body.is_required,
+        body.placeholder,
+        body.help_text,
+        body.options,
+        body.validation_rules,
+        body.display_order,
+        id
+      ];
+      
+      const result = await pool.query(query, values);
+      
+      if (result.rows.length === 0) {
+        reply.code(404);
+        return { error: 'Custom field not found' };
+      }
+      
+      return result.rows[0];
+    } catch (error: any) {
+      app.log.error(error);
+      reply.code(500);
+      return { error: 'Internal server error' };
+    }
+  });
+
+  app.delete('/custom-fields/:id', async (req, reply) => {
+    try {
+      const { id } = req.params as { id: string };
+      
+      const query = `
+        UPDATE custom_fields 
+        SET is_active = false, updated_at = now()
+        WHERE id = $1
+        RETURNING *
+      `;
+      
+      const result = await pool.query(query, [id]);
+      
+      if (result.rows.length === 0) {
+        reply.code(404);
+        return { error: 'Custom field not found' };
+      }
+      
+      return { success: true };
+    } catch (error: any) {
+      app.log.error(error);
+      reply.code(500);
+      return { error: 'Internal server error' };
+    }
+  });
+
+  // Get lead with custom values
+  app.get('/leads/:id/custom-values', async (req, reply) => {
+    try {
+      const { id } = req.params as { id: string };
+      
+      const query = `
+        SELECT 
+          cf.name,
+          cf.label,
+          cf.field_type,
+          lcv.value
+        FROM custom_fields cf
+        LEFT JOIN lead_custom_values lcv ON cf.id = lcv.custom_field_id AND lcv.lead_id = $1
+        WHERE cf.is_active = true
+        ORDER BY cf.display_order
+      `;
+      
+      const result = await pool.query(query, [id]);
+      return result.rows;
     } catch (error: any) {
       app.log.error(error);
       reply.code(500);

@@ -5,7 +5,7 @@ import {
   TableCell, TableContainer, TableHead, TableRow, Paper, Chip, MenuItem,
   Select, FormControl, InputLabel
 } from '@mui/material'
-import { Add, Email as EmailIcon, Send, Drafts } from '@mui/icons-material'
+import { Add, Send } from '@mui/icons-material'
 
 interface Email {
   id: string
@@ -27,7 +27,7 @@ export function EmailManager() {
   const [emails, setEmails] = useState<Email[]>([])
   const [leads, setLeads] = useState<Lead[]>([])
   const [openDialog, setOpenDialog] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [, setLoading] = useState(false)
   const [newEmail, setNewEmail] = useState({
     leadId: '',
     to: '',
@@ -111,7 +111,7 @@ export function EmailManager() {
       }
     } catch (err) {
       console.error('Error sending email:', err)
-      alert('Erro ao enviar email: ' + err.message)
+      alert('Erro ao enviar email: ' + (err instanceof Error ? err.message : 'Erro desconhecido'))
     }
   }
 

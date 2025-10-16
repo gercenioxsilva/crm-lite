@@ -6,6 +6,7 @@ import {
   DialogActions, Grid, Avatar, CircularProgress
 } from '@mui/material'
 import { MoreVert, Search, Add, Business, Person, AttachMoney, Phone, Email } from '@mui/icons-material'
+import { WhatsAppIntegration } from './WhatsAppIntegration'
 
 interface Lead {
   id: string
@@ -65,6 +66,7 @@ export function SimpleLeadsList() {
     lead_value: '',
     notes: ''
   })
+  const [whatsappDialog, setWhatsappDialog] = useState(false)
 
   const fetchLeads = async () => {
     try {
@@ -413,6 +415,12 @@ export function SimpleLeadsList() {
         }}>
           Adicionar Atividade
         </MenuItem>
+        <MenuItem onClick={() => {
+          setWhatsappDialog(true)
+          setAnchorEl(null)
+        }}>
+          Enviar WhatsApp
+        </MenuItem>
       </Menu>
 
       {/* Dialog de Detalhes */}
@@ -505,6 +513,25 @@ export function SimpleLeadsList() {
           >
             Qualificar
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog do WhatsApp */}
+      <Dialog open={whatsappDialog} onClose={() => setWhatsappDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>WhatsApp - {selectedLead?.name}</DialogTitle>
+        <DialogContent>
+          {selectedLead && (
+            <WhatsAppIntegration 
+              lead={selectedLead} 
+              onMessageSent={() => {
+                setWhatsappDialog(false)
+                fetchLeads() // Refresh para mostrar nova atividade
+              }}
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setWhatsappDialog(false)}>Fechar</Button>
         </DialogActions>
       </Dialog>
     </Box>

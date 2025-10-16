@@ -21,6 +21,7 @@ import {
   AccountTree as PipelineIcon,
   BarChart as BarChartIcon,
   Assignment as ActivitiesIcon,
+  Settings as SettingsIcon,
   Logout as LogoutIcon
 } from '@mui/icons-material'
 
@@ -41,6 +42,7 @@ export function Layout() {
     { name: 'Pipeline', path: '/pipeline', icon: PipelineIcon },
     { name: 'Atividades', path: '/activities', icon: ActivitiesIcon },
     { name: 'Relatórios', path: '/reports', icon: BarChartIcon },
+    { name: 'Campos Customizáveis', path: '/custom-fields', icon: SettingsIcon },
   ]
 
   return (
@@ -94,7 +96,9 @@ export function Layout() {
 
         <List sx={{ px: 2 }}>
           {navigation.map((item) => {
-            const isActive = location.pathname === item.path
+            const isActive = item.path === '/' 
+              ? location.pathname === '/' 
+              : location.pathname.startsWith(item.path)
             return (
               <ListItem key={item.name} disablePadding sx={{ mb: 0.5 }}>
                 <ListItemButton

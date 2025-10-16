@@ -19,6 +19,7 @@ chmod +x start-system.sh
 - Landing: http://localhost:3010
 - CRM: http://localhost:3030 (admin@quiz.com / admin123)
 - Email Service: http://localhost:3040
+- WhatsApp Service: http://localhost:3050
 
 ## 📚 Documentação Completa
 
@@ -63,6 +64,19 @@ troubleshoot-crm.bat   # Diagnóstico e correções
 - ✅ Arquitetura hexagonal com DDD
 - ✅ Banco NoSQL (MongoDB) para controle
 
+## 📱 Novo: Integração WhatsApp
+
+### Funcionalidades
+- ✅ Integração com Meta WhatsApp Business API
+- ✅ Mensagens automáticas de boas-vindas
+- ✅ Follow-up personalizado para leads
+- ✅ Mensagens interativas (botões e listas)
+- ✅ Qualificação automática de leads
+- ✅ Processamento de respostas recebidas
+- ✅ Mock service para desenvolvimento
+- ✅ Webhook para automação de fluxos
+- ✅ Integração completa com CRM
+
 ### Configuração AWS
 ```bash
 # Configurar credenciais AWS
@@ -70,4 +84,23 @@ AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=your-access-key
 AWS_SECRET_ACCESS_KEY=your-secret-key
 SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/account/queue
+```
+
+### Configuração WhatsApp
+```bash
+# Para desenvolvimento (usa mock)
+WHATSAPP_USE_MOCK=true
+
+# Para produção (Meta WhatsApp Business API)
+WHATSAPP_USE_MOCK=false
+WHATSAPP_ACCESS_TOKEN=your-meta-access-token
+WHATSAPP_PHONE_NUMBER_ID=your-phone-number-id
+WHATSAPP_VERIFY_TOKEN=quiz-whatsapp-token
+```
+
+### Teste da Integração WhatsApp
+```bash
+# Executar testes de integração
+cd services/whatsapp
+node test-integration.js
 ```

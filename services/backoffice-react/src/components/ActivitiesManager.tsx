@@ -6,7 +6,7 @@ import {
   TableRow, Paper, Chip, Grid
 } from '@mui/material'
 import {
-  Add, Phone, Email, VideoCall, Event, Note, CheckCircle, Cancel
+  Add, Phone, Email, VideoCall, Event, Note, CheckCircle, Cancel, Refresh
 } from '@mui/icons-material'
 
 interface Activity {
@@ -47,7 +47,7 @@ export function ActivitiesManager() {
   const fetchData = async () => {
     try {
       setLoading(true)
-      const token = localStorage.getItem('auth_token')
+      const token = localStorage.getItem('auth_token') || 'mock-admin-token'
       const headers = {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -57,21 +57,17 @@ export function ActivitiesManager() {
       const leadsRes = await fetch('http://localhost:3000/backoffice/leads', { headers })
       if (leadsRes.ok) {
         const leadsData = await leadsRes.json()
-        setLeads(leadsData.slice(0, 50)) // Limit for dropdown
+        setLeads(leadsData.slice(0, 50))
       }
 
-      // Fetch real activities from API
-      try {
-        const activitiesRes = await fetch('http://localhost:3000/backoffice/activities', { headers })
-        if (activitiesRes.ok) {
-          const activitiesData = await activitiesRes.json()
-          setActivities(activitiesData)
-        } else {
-          // Fallback to empty array if no activities
-          setActivities([])
-        }
-      } catch (actErr) {
-        console.log('No activities found, starting with empty list')
+      // Fetch activities with timestamp to avoid cache
+      const activitiesRes = await fetch(`http://localhost:3000/backoffice/activities?t=${Date.now()}`, { headers })
+      if (activitiesRes.ok) {
+        const activitiesData = await activitiesRes.json()
+        console.log('Activities loaded:', activitiesData.length)
+        setActivities(Array.isArray(activitiesData) ? activitiesData : [])
+      } else {
+        console.log('No activities response, setting empty array')
         setActivities([])
       }
 
@@ -90,25 +86,34 @@ export function ActivitiesManager() {
         return
       }
 
-      const token = localStorage.getItem('auth_token')
+      const token = localStorage.getItem('auth_token') || 'mock-admin-token'
+      const payload = {
+        leadId: newActivity.leadId,
+        type: newActivity.type,
+        description: newActivity.description,
+        outcome: newActivity.outcome || null,
+        follow_up_required: newActivity.follow_up_required,
+        next_action: newActivity.next_action || null,
+        duration_minutes: newActivity.duration_minutes ? parseInt(newActivity.duration_minutes) : null
+      }
+      
+      console.log('Creating activity with payload:', payload)
+      
       const response = await fetch('http://localhost:3000/backoffice/activities', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          leadId: newActivity.leadId,
-          type: newActivity.type,
-          description: newActivity.description,
-          outcome: newActivity.outcome || null,
-          follow_up_required: newActivity.follow_up_required,
-          next_action: newActivity.next_action || null,
-          duration_minutes: newActivity.duration_minutes ? parseInt(newActivity.duration_minutes) : null
-        })
+        body: JSON.stringify(payload)
       })
 
+      console.log('Response status:', response.status)
+      
       if (response.ok) {
+        const result = await response.json()
+        console.log('Activity created:', result)
+        
         setOpenDialog(false)
         setNewActivity({
           leadId: '',
@@ -119,7 +124,11 @@ export function ActivitiesManager() {
           next_action: '',
           duration_minutes: ''
         })
-        await fetchData() // Refresh the activities list
+        
+        // Force refresh after a short delay
+        setTimeout(() => {
+          fetchData()
+        }, 1000)
       } else {
         const errorData = await response.json()
         console.error('Error creating activity:', errorData)
@@ -127,7 +136,7 @@ export function ActivitiesManager() {
       }
     } catch (err) {
       console.error('Error creating activity:', err)
-      alert('Erro ao criar atividade: ' + err.message)
+      alert('Erro ao criar atividade: ' + (err instanceof Error ? err.message : 'Erro desconhecido'))
     }
   }
 
@@ -155,6 +164,9 @@ export function ActivitiesManager() {
 
   useEffect(() => {
     fetchData()
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(fetchData, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   return (
@@ -163,13 +175,22 @@ export function ActivitiesManager() {
         <Typography variant="h5">
           📋 Gestão de Atividades
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => setOpenDialog(true)}
-        >
-          Nova Atividade
-        </Button>
+        <Box display="flex" gap={2}>
+          <Button
+            variant="outlined"
+            startIcon={<Refresh />}
+            onClick={fetchData}
+          >
+            Atualizar
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={() => setOpenDialog(true)}
+          >
+            Nova Atividade
+          </Button>
+        </Box>
       </Box>
 
       {/* Quick Stats */}

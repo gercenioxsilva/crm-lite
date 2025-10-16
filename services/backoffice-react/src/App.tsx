@@ -9,6 +9,7 @@ import { Leads } from './pages/Leads'
 import { Pipeline } from './pages/Pipeline'
 import { Activities } from './pages/Activities'
 import { Reports } from './pages/Reports'
+import { CustomFields } from './pages/CustomFields'
 import { SimpleLogin } from './pages/SimpleLogin'
 import { AuthProvider } from './hooks/useAuth'
 import { ProtectedRoute } from './components/ProtectedRoute'
@@ -44,6 +45,7 @@ function App() {
                   <Route path="pipeline" element={<Pipeline />} />
                   <Route path="activities" element={<Activities />} />
                   <Route path="reports" element={<Reports />} />
+                  <Route path="custom-fields" element={<CustomFields />} />
                 </Route>
               </Routes>
             </Router>

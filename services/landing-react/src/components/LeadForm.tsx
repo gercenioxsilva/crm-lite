@@ -17,6 +17,7 @@ import {
   CircularProgress
 } from '@mui/material'
 import { GoogleSignIn } from './GoogleSignIn'
+import { DynamicFormFields } from './DynamicFormFields'
 import { api } from '../services/api'
 import { isValidCPF, isValidPhone, isValidCEP, onlyDigits } from '../utils/validation'
 
@@ -48,12 +49,13 @@ const step2Schema = z.object({
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'GOOGLE_CLIENT_ID_REPLACE'
 
-const steps = ['Dados Pessoais', 'Informações Comerciais']
+const steps = ['Dados Pessoais', 'Informações Comerciais', 'Informações Adicionais']
 
 export function LeadForm() {
   const [activeStep, setActiveStep] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [result, setResult] = useState<{ type: 'success' | 'error', message: string } | null>(null)
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({})
 
   const step1Form = useForm({
     resolver: zodResolver(step1Schema),
@@ -93,26 +95,33 @@ export function LeadForm() {
       if (isValid) {
         setActiveStep(1)
       }
+    } else if (activeStep === 1) {
+      const isValid = await step2Form.trigger()
+      if (isValid) {
+        setActiveStep(2)
+      }
     }
   }
 
   const handleBack = () => {
-    setActiveStep(0)
+    setActiveStep(activeStep - 1)
   }
 
-  const handleStep2Submit = async (data: any) => {
+  const handleFinalSubmit = async () => {
     setIsSubmitting(true)
     setResult(null)
 
     const step1Data = step1Form.getValues()
+    const step2Data = step2Form.getValues()
     const formData = {
       ...step1Data,
-      ...data,
+      ...step2Data,
       cpf: step1Data.cpf ? onlyDigits(step1Data.cpf) : undefined,
       phone: step1Data.phone ? onlyDigits(step1Data.phone) : undefined,
-      cep: data.cep ? onlyDigits(data.cep) : undefined,
-      state: data.state?.toUpperCase() || undefined,
-      source: 'landing'
+      cep: step2Data.cep ? onlyDigits(step2Data.cep) : undefined,
+      state: step2Data.state?.toUpperCase() || undefined,
+      source: 'landing',
+      customFields: customFieldValues
     }
 
     try {
@@ -148,6 +157,7 @@ export function LeadForm() {
   const resetForm = () => {
     step1Form.reset()
     step2Form.reset()
+    setCustomFieldValues({})
     setActiveStep(0)
     setResult(null)
   }
@@ -290,7 +300,7 @@ export function LeadForm() {
       )}
 
       {activeStep === 1 && (
-        <Box component="form" onSubmit={step2Form.handleSubmit(handleStep2Submit)}>
+        <Box component="form" onSubmit={step2Form.handleSubmit(handleNext)}>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6}>
               <Controller
@@ -476,8 +486,24 @@ export function LeadForm() {
           
           <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 3 }}>
             <Button onClick={handleBack}>Voltar</Button>
+            <Button type="submit" variant="contained">Continuar</Button>
+          </Box>
+        </Box>
+      )}
+
+      {activeStep === 2 && (
+        <Box>
+          <DynamicFormFields 
+            onFieldChange={(fieldName, value) => {
+              setCustomFieldValues(prev => ({ ...prev, [fieldName]: value }))
+            }}
+            values={customFieldValues}
+          />
+          
+          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 3 }}>
+            <Button onClick={handleBack}>Voltar</Button>
             <Button 
-              type="submit" 
+              onClick={handleFinalSubmit}
               variant="contained" 
               disabled={isSubmitting}
               startIcon={isSubmitting ? <CircularProgress size={20} /> : null}
