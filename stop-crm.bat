@@ -7,42 +7,58 @@ setlocal enabledelayedexpansion
 
 title Quiz CRM - Parando Sistema
 
-:: Cores para output
-set "GREEN=[92m"
-set "RED=[91m"
-set "YELLOW=[93m"
-set "BLUE=[94m"
-set "RESET=[0m"
+
 
 echo.
-echo %BLUE%========================================%RESET%
-echo %BLUE%🛑 QUIZ CRM - PARANDO SISTEMA%RESET%
-echo %BLUE%========================================%RESET%
+echo ========================================
+echo 🛑 QUIZ CRM - PARANDO SISTEMA
+echo ========================================
 echo.
 
-echo %YELLOW%📋 Parando todos os serviços...%RESET%
+echo 📋 Parando todos os serviços...
 docker compose down
 
-echo.
-echo %YELLOW%🧹 Limpando recursos (opcional)...%RESET%
-set /p cleanup="Deseja limpar volumes e imagens não utilizadas? (s/N): "
-
-if /i "!cleanup!"=="s" (
-    echo %YELLOW%🗑️  Removendo volumes...%RESET%
-    docker compose down --volumes
-    
-    echo %YELLOW%🧹 Limpando sistema Docker...%RESET%
-    docker system prune -f
-    
-    echo %GREEN%✅ Limpeza completa realizada!%RESET%
-) else (
-    echo %BLUE%💾 Dados preservados.%RESET%
+if errorlevel 1 (
+    echo ⚠️  Alguns containers podem não ter parado corretamente.
+    echo 🔧 Forçando parada...
+    docker compose kill
+    docker compose down --remove-orphans
 )
 
 echo.
-echo %GREEN%✅ Sistema parado com sucesso!%RESET%
+echo 🧹 Opções de limpeza:
+echo   1. Manter dados (recomendado)
+echo   2. Limpar volumes (remove dados)
+echo   3. Limpeza completa (remove tudo)
 echo.
-echo %YELLOW%💡 Para reiniciar: start-crm.bat%RESET%
+set /p cleanup="Escolha uma opção (1-3): "
+
+if "!cleanup!"=="2" (
+    echo 🗑️  Removendo volumes...
+    docker compose down --volumes
+    echo ✅ Volumes removidos!
+) else if "!cleanup!"=="3" (
+    echo 🗑️  Removendo volumes...
+    docker compose down --volumes --remove-orphans
+    
+    echo 🧹 Limpando sistema Docker...
+    docker system prune -af
+    
+    echo 🗑️  Removendo imagens do projeto...
+    docker rmi crm-lite-api-gateway crm-lite-auth crm-lite-leads crm-lite-email crm-lite-backoffice crm-lite-landing 2>nul
+    
+    echo ✅ Limpeza completa realizada!
+) else (
+    echo 💾 Dados preservados.
+)
+
+echo.
+echo ✅ Sistema parado com sucesso!
+echo.
+echo 💡 Comandos úteis:
+echo   Reiniciar: start-crm.bat
+echo   Status:    status-crm.bat
+echo   Logs:      docker compose logs
 echo.
 pause
 

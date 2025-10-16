@@ -45,11 +45,10 @@ if not exist ".env" (
 echo ✅ Pre-requisitos verificados!
 echo.
 
-:: Passo 1: Limpeza
-echo 📋 Passo 1: Limpando ambiente...
-docker compose down --volumes --remove-orphans >nul 2>&1
-docker system prune -f >nul 2>&1
-echo ✅ Ambiente limpo!
+:: Passo 1: Limpeza e preparação
+echo 📋 Passo 1: Preparando ambiente...
+docker compose down --remove-orphans >nul 2>&1
+echo ✅ Ambiente preparado!
 echo.
 
 :: Passo 2: Iniciar banco
@@ -98,20 +97,35 @@ if errorlevel 1 (
 echo ✅ Migracoes executadas!
 echo.
 
-:: Passo 4: Build e start de todos os serviços
-echo 🏗️  Passo 4: Construindo e iniciando servicos...
-docker compose up --build -d
+:: Passo 4: Iniciar serviços em ordem
+echo 🏗️  Passo 4: Iniciando servicos em ordem...
+
+echo   📦 Iniciando MongoDB...
+docker compose up -d mongo
+timeout /t 5 /nobreak >nul
+
+echo   🔐 Iniciando servicos de negocio...
+docker compose up -d auth leads
+timeout /t 5 /nobreak >nul
+
+echo   📧 Iniciando servico de email...
+docker compose up -d email
+timeout /t 3 /nobreak >nul
+
+echo   🌐 Iniciando gateway e interfaces...
+docker compose up -d api-gateway landing backoffice
+
 if errorlevel 1 (
     echo ❌ Falha ao iniciar servicos!
-    echo Verificando logs dos servicos...
-    docker compose logs --tail=20
     echo.
-    echo 💡 Dicas para resolver problemas:
-    echo   - Verifique se todas as portas estao livres
-    echo   - Execute: docker system prune -f
-    echo   - Tente novamente: start-crm.bat
-    pause
-    exit /b 1
+    echo 🔧 Tentando correcao automatica...
+    call :fix_services
+    if errorlevel 1 (
+        echo ❌ Correcao falhou! Verifique os logs.
+        docker compose logs --tail=20
+        pause
+        exit /b 1
+    )
 )
 
 :: Aguardar serviços ficarem prontos
@@ -151,6 +165,14 @@ if not errorlevel 1 (
     echo ✅ Auth Service: OK
 ) else (
     echo ❌ Auth Service: FALHOU
+)
+
+:: Testar Email Service
+curl -s http://localhost:3040/health >nul 2>&1
+if not errorlevel 1 (
+    echo ✅ Email Service: OK
+) else (
+    echo ❌ Email Service: FALHOU
 )
 
 :: Testar Landing Page
@@ -203,6 +225,7 @@ echo 🌐 URLs DISPONÍVEIS:
 echo   🏠 Landing Page:    http://localhost:3010
 echo   💼 Backoffice CRM:  http://localhost:3030
 echo   🔗 API Gateway:     http://localhost:3000
+echo   📧 Email Service:   http://localhost:3040
 echo   📚 Swagger API:     http://localhost:3000/docs
 echo.
 
@@ -217,6 +240,7 @@ echo   ✅ Dashboard com dados reais e gráficos
 echo   ✅ Gestão completa de leads
 echo   ✅ Pipeline Kanban funcional
 echo   ✅ Sistema de atividades
+echo   ✅ Serviço de email integrado
 echo   ✅ Relatórios em tempo real
 echo   ✅ Login simplificado e robusto
 echo   ✅ Coleta automática da landing page
@@ -249,5 +273,27 @@ if /i "!choice!"=="s" (
     echo.
     pause
 )
+
+goto :eof
+
+:fix_services
+echo   🔧 Parando email service...
+docker compose stop email >nul 2>&1
+
+echo   🔧 Removendo imagem com erro...
+docker rmi crm-lite-email >nul 2>&1
+
+echo   🔧 Reconstruindo email service...
+docker compose build --no-cache email >nul 2>&1
+
+echo   🔧 Iniciando servicos...
+docker compose up -d >nul 2>&1
+
+if errorlevel 1 (
+    exit /b 1
+)
+
+echo ✅ Correcao aplicada com sucesso!
+exit /b 0
 
 endlocal

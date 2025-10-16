@@ -183,6 +183,11 @@ export async function registerRoutes(app: FastifyInstance){
     }, async (req) => {
       try {
         const leadsResponse = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/leads`);
+        
+        if (!leadsResponse.ok) {
+          throw new Error(`HTTP ${leadsResponse.status}`);
+        }
+        
         const leads = await leadsResponse.json();
         
         const totalLeads = leads.length;
@@ -241,6 +246,11 @@ export async function registerRoutes(app: FastifyInstance){
     }, async (req) => {
       try {
         const leadsResponse = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/leads`);
+        
+        if (!leadsResponse.ok) {
+          throw new Error(`HTTP ${leadsResponse.status}`);
+        }
+        
         const leads = await leadsResponse.json();
         
         const daysOfWeek = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
@@ -276,6 +286,11 @@ export async function registerRoutes(app: FastifyInstance){
       // Fetch real data from leads service
       try {
         const leadsResponse = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/leads`);
+        
+        if (!leadsResponse.ok) {
+          throw new Error(`HTTP ${leadsResponse.status}`);
+        }
+        
         const leadsData = await leadsResponse.json();
         return leadsData.map((lead: any) => ({
           id: lead.id,
@@ -298,29 +313,8 @@ export async function registerRoutes(app: FastifyInstance){
           created_at: lead.created_at
         }));
       } catch (error) {
-        // Fallback to mock data
-        return [
-          {
-            id: '1',
-            name: 'João Silva Santos',
-            email: 'joao.silva@email.com',
-            source: 'landing',
-            phone: '11987654321',
-            city: 'São Paulo',
-            state: 'SP',
-            status: 'qualified',
-            score: 85,
-            temperature: 'hot',
-            company: 'Tech Solutions',
-            job_title: 'CTO',
-            lead_value: 50000,
-            priority: 'high',
-            assigned_to: 'vendedor1@quiz.com',
-            stage_name: 'Qualificado',
-            next_follow_up: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-            created_at: new Date().toISOString()
-          }
-        ];
+        console.error('Error fetching leads:', error);
+        return [];
       }
     });
 
@@ -329,21 +323,26 @@ export async function registerRoutes(app: FastifyInstance){
       schema: { tags: ['backoffice'], summary: 'Create lead', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
       const body = (req.body as any) || {};
-      const lead = await createLead({
-        name: body.name,
-        email: body.email,
-        company: body.company,
-        job_title: body.job_title,
-        phone: body.phone,
-        lead_value: body.lead_value,
-        expected_close_date: body.expected_close_date,
-        priority: body.priority || 'medium',
-        assigned_to: body.assigned_to,
-        source: body.source || 'backoffice',
-        monthly_income: body.monthly_income,
-        notes: body.notes
-      });
-      return lead;
+      try {
+        const lead = await createLead({
+          name: body.name,
+          email: body.email,
+          company: body.company,
+          job_title: body.job_title,
+          phone: body.phone,
+          lead_value: body.lead_value,
+          expected_close_date: body.expected_close_date,
+          priority: body.priority || 'medium',
+          assigned_to: body.assigned_to,
+          source: body.source || 'backoffice',
+          monthly_income: body.monthly_income,
+          notes: body.notes
+        });
+        return lead;
+      } catch (error) {
+        console.error('Error creating lead:', error);
+        throw error;
+      }
     });
 
     app.put('/backoffice/leads/:id', {
@@ -363,13 +362,14 @@ export async function registerRoutes(app: FastifyInstance){
         });
         
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
         
         return await response.json();
       } catch (error) {
         console.error('Error updating lead:', error);
-        return { id, ...body, updated_at: new Date().toISOString() };
+        throw error;
       }
     });
 
@@ -390,13 +390,32 @@ export async function registerRoutes(app: FastifyInstance){
         });
         
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
         
         return await response.json();
       } catch (error) {
         console.error('Error moving lead:', error);
-        return { success: true, leadId: id, stageId };
+        throw error;
+      }
+    });
+
+    app.get('/backoffice/activities', {
+      preHandler: [requireScope('leads:read')],
+      schema: { tags: ['backoffice'], summary: 'List activities', security: [{ bearerAuth: [] }] } as any
+    }, async (req) => {
+      try {
+        const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/activities`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Error fetching activities:', error);
+        return [];
       }
     });
 
@@ -424,20 +443,83 @@ export async function registerRoutes(app: FastifyInstance){
         });
         
         if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        const activity = await response.json();
+        
+        // Send email if it's an email activity
+        if (body.type === 'email' && body.emailContent) {
+          try {
+            await fetch(`${process.env.EMAIL_BASE_URL || 'http://email:3040'}/emails`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                from: { email: 'noreply@crm.com', name: 'CRM System' },
+                to: [{ email: body.emailContent.to }],
+                subject: body.emailContent.subject,
+                htmlBody: body.emailContent.htmlBody,
+                textBody: body.emailContent.textBody,
+                leadId: body.leadId,
+                priority: 'normal'
+              })
+            });
+          } catch (emailError) {
+            console.error('Error sending email:', emailError);
+          }
+        }
+        
+        return activity;
+      } catch (error) {
+        console.error('Error creating activity:', error);
+        throw error;
+      }
+    });
+
+    app.post('/backoffice/emails', {
+      preHandler: [requireScope('leads:write')],
+      schema: { tags: ['backoffice'], summary: 'Send email', security: [{ bearerAuth: [] }] } as any
+    }, async (req) => {
+      const body = (req.body as any) || {};
+      
+      try {
+        const response = await fetch(`${process.env.EMAIL_BASE_URL || 'http://email:3040'}/emails`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body)
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Error sending email:', error);
+        throw error;
+      }
+    });
+
+    app.get('/backoffice/emails/lead/:leadId', {
+      preHandler: [requireScope('leads:read')],
+      schema: { tags: ['backoffice'], summary: 'Get lead emails', security: [{ bearerAuth: [] }] } as any
+    }, async (req) => {
+      try {
+        const { leadId } = req.params as { leadId: string };
+        const response = await fetch(`${process.env.EMAIL_BASE_URL || 'http://email:3040'}/emails/lead/${leadId}`);
+        
+        if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
         
         return await response.json();
       } catch (error) {
-        console.error('Error creating activity:', error);
-        return {
-          id: Math.random().toString(36),
-          lead_id: body.leadId,
-          type: body.type,
-          description: body.description,
-          outcome: body.outcome,
-          created_at: new Date().toISOString()
-        };
+        console.error('Error fetching lead emails:', error);
+        return [];
       }
     });
 
@@ -447,81 +529,16 @@ export async function registerRoutes(app: FastifyInstance){
     }, async (req) => {
       try {
         const pipelineResponse = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/pipeline`);
+        
+        if (!pipelineResponse.ok) {
+          throw new Error(`HTTP ${pipelineResponse.status}`);
+        }
+        
         const pipelineData = await pipelineResponse.json();
         return pipelineData;
       } catch (error) {
         console.error('Error fetching pipeline:', error);
-        try {
-          const fallbackResponse = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/pipeline`);
-          const fallbackData = await fallbackResponse.json();
-          return fallbackData;
-        } catch (fallbackError) {
-          // Mock pipeline data
-          return [
-          {
-            id: '1',
-            name: 'Novo Lead',
-            order_no: 1,
-            stage_color: '#94a3b8',
-            leads: [
-              {
-                id: '1',
-                name: 'Ana Paula Ferreira',
-                email: 'ana@email.com',
-                company: 'Startup Fintech',
-                job_title: 'Founder',
-                lead_value: 30000,
-                priority: 'medium',
-                temperature: 'warm',
-                assigned_to: 'vendedor1@quiz.com',
-                stage_name: 'Novo Lead'
-              }
-            ]
-          },
-          {
-            id: '2',
-            name: 'Qualificado',
-            order_no: 2,
-            stage_color: '#3b82f6',
-            leads: [
-              {
-                id: '2',
-                name: 'João Silva Santos',
-                email: 'joao@email.com',
-                company: 'Tech Solutions',
-                job_title: 'CTO',
-                lead_value: 50000,
-                priority: 'high',
-                temperature: 'hot',
-                assigned_to: 'vendedor1@quiz.com',
-                stage_name: 'Qualificado',
-                next_follow_up: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString()
-              }
-            ]
-          },
-          {
-            id: '3',
-            name: 'Proposta',
-            order_no: 3,
-            stage_color: '#f59e0b',
-            leads: []
-          },
-          {
-            id: '4',
-            name: 'Negociação',
-            order_no: 4,
-            stage_color: '#ef4444',
-            leads: []
-          },
-          {
-            id: '5',
-            name: 'Fechado',
-            order_no: 5,
-            stage_color: '#22c55e',
-            leads: []
-          }
-        ];
-        }
+        return [];
       }
     });
   });

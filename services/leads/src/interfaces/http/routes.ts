@@ -16,9 +16,9 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get('/health', async () => {
     try {
       await pool.query('SELECT 1');
-      return { status: 'ok', service: 'leads', database: 'connected' };
+      return { status: 'ok', service: 'leads', database: 'connected', timestamp: new Date().toISOString() };
     } catch (error: any) {
-      return { status: 'error', service: 'leads', database: 'disconnected', error: error.message };
+      return { status: 'error', service: 'leads', database: 'disconnected', error: error.message, timestamp: new Date().toISOString() };
     }
   });
 
@@ -119,6 +119,29 @@ export async function registerRoutes(app: FastifyInstance) {
     }
   });
 
+  // Get all activities (for backoffice)
+  app.get('/activities', async (req, reply) => {
+    try {
+      const query = `
+        SELECT 
+          a.*,
+          l.name as lead_name,
+          l.email as lead_email
+        FROM activities a
+        LEFT JOIN leads l ON a.lead_id = l.id
+        ORDER BY a.created_at DESC
+        LIMIT 100
+      `;
+      
+      const result = await pool.query(query);
+      return result.rows;
+    } catch (error: any) {
+      app.log.error(error);
+      reply.code(500);
+      return { error: 'Internal server error' };
+    }
+  });
+
   // Get lead by ID
   app.get('/leads/:id', async (req, reply) => {
     try {
@@ -137,6 +160,61 @@ export async function registerRoutes(app: FastifyInstance) {
       `;
       
       const result = await pool.query(query, [id]);
+      
+      if (result.rows.length === 0) {
+        reply.code(404);
+        return { error: 'Lead not found' };
+      }
+      
+      return result.rows[0];
+    } catch (error: any) {
+      app.log.error(error);
+      reply.code(500);
+      return { error: 'Internal server error' };
+    }
+  });
+
+  // Update lead
+  app.put('/leads/:id', async (req, reply) => {
+    try {
+      const { id } = req.params as { id: string };
+      const body = req.body as any;
+      
+      const updateFields = [];
+      const values = [];
+      let paramCount = 1;
+      
+      // Build dynamic update query
+      const allowedFields = [
+        'name', 'email', 'phone', 'company', 'job_title', 
+        'lead_value', 'priority', 'assigned_to', 'next_follow_up',
+        'temperature', 'score', 'status'
+      ];
+      
+      for (const field of allowedFields) {
+        if (body[field] !== undefined) {
+          updateFields.push(`${field} = $${paramCount}`);
+          values.push(body[field]);
+          paramCount++;
+        }
+      }
+      
+      if (updateFields.length === 0) {
+        reply.code(400);
+        return { error: 'No valid fields to update' };
+      }
+      
+      updateFields.push(`updated_at = now()`);
+      values.push(id);
+      
+      const query = `
+        UPDATE leads 
+        SET ${updateFields.join(', ')}
+        WHERE id = $${paramCount}
+        RETURNING *
+      `;
+      
+      const result = await pool.query(query, values);
       
       if (result.rows.length === 0) {
         reply.code(404);
@@ -171,15 +249,37 @@ export async function registerRoutes(app: FastifyInstance) {
     }
   });
 
+  // Get all pipelines
+  app.get('/pipelines', async (req, reply) => {
+    try {
+      const query = `
+        SELECT * FROM pipelines 
+        WHERE is_active = true
+        ORDER BY created_at
+      `;
+      
+      const result = await pool.query(query);
+      return result.rows;
+    } catch (error: any) {
+      app.log.error(error);
+      reply.code(500);
+      return { error: 'Internal server error' };
+    }
+  });
+
   // Get lead activities
   app.get('/leads/:id/activities', async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
       
       const query = `
-        SELECT * FROM activities 
-        WHERE lead_id = $1 
-        ORDER BY created_at DESC
+        SELECT 
+          a.*,
+          l.name as lead_name
+        FROM activities a
+        LEFT JOIN leads l ON a.lead_id = l.id
+        WHERE a.lead_id = $1 
+        ORDER BY a.created_at DESC
       `;
       
       const result = await pool.query(query, [id]);
@@ -198,17 +298,23 @@ export async function registerRoutes(app: FastifyInstance) {
       const body = req.body as any;
       
       const query = `
-        INSERT INTO activities (lead_id, type, subject, description, outcome, created_by)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO activities (
+          lead_id, type, subject, description, outcome, 
+          duration_minutes, follow_up_required, next_action, created_by
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
       `;
       
       const values = [
         id,
         body.type,
-        body.subject || null,
+        body.subject || body.description?.substring(0, 100) || null,
         body.description || null,
         body.outcome || null,
+        body.duration_minutes || null,
+        body.follow_up_required || false,
+        body.next_action || null,
         body.created_by || 'system'
       ];
       
@@ -228,17 +334,23 @@ export async function registerRoutes(app: FastifyInstance) {
       const body = req.body as any;
       
       const query = `
-        INSERT INTO activities (lead_id, type, subject, description, outcome, created_by)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO activities (
+          lead_id, type, subject, description, outcome, 
+          duration_minutes, follow_up_required, next_action, created_by
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
       `;
       
       const values = [
         body.lead_id,
         body.type,
-        body.subject || null,
+        body.subject || body.description?.substring(0, 100) || null,
         body.description || null,
         body.outcome || null,
+        body.duration_minutes || null,
+        body.follow_up_required || false,
+        body.next_action || null,
         body.created_by || 'system'
       ];
       
@@ -289,6 +401,34 @@ export async function registerRoutes(app: FastifyInstance) {
       
       const result = await pool.query(query);
       return result.rows;
+    } catch (error: any) {
+      app.log.error(error);
+      reply.code(500);
+      return { error: 'Internal server error' };
+    }
+  });
+
+  // Update lead stage
+  app.put('/leads/:id/move', async (req, reply) => {
+    try {
+      const { id } = req.params as { id: string };
+      const { stageId } = req.body as any;
+      
+      const query = `
+        UPDATE lead_pipeline 
+        SET current_stage_id = $1, updated_at = now()
+        WHERE lead_id = $2
+        RETURNING *
+      `;
+      
+      const result = await pool.query(query, [stageId, id]);
+      
+      if (result.rows.length === 0) {
+        reply.code(404);
+        return { error: 'Lead not found in pipeline' };
+      }
+      
+      return { success: true, leadId: id, stageId };
     } catch (error: any) {
       app.log.error(error);
       reply.code(500);

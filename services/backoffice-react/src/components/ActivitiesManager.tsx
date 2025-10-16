@@ -57,50 +57,27 @@ export function ActivitiesManager() {
       const leadsRes = await fetch('http://localhost:3000/backoffice/leads', { headers })
       if (leadsRes.ok) {
         const leadsData = await leadsRes.json()
-        setLeads(leadsData.slice(0, 20)) // Limit for dropdown
+        setLeads(leadsData.slice(0, 50)) // Limit for dropdown
       }
 
-      // Mock activities for now (would come from API)
-      setActivities([
-        {
-          id: '1',
-          lead_id: '11111111-1111-1111-1111-111111111111',
-          type: 'call',
-          description: 'Ligação inicial para apresentar a solução',
-          outcome: 'Interessado, solicitou proposta',
-          follow_up_required: true,
-          next_action: 'Enviar proposta comercial',
-          duration_minutes: 15,
-          created_at: new Date().toISOString(),
-          lead_name: 'João Silva Santos'
-        },
-        {
-          id: '2',
-          lead_id: '22222222-2222-2222-2222-222222222222',
-          type: 'email',
-          description: 'Envio de material institucional',
-          outcome: 'Email aberto, aguardando retorno',
-          follow_up_required: true,
-          next_action: 'Ligar em 2 dias',
-          created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-          lead_name: 'Maria Oliveira Costa'
-        },
-        {
-          id: '3',
-          lead_id: '33333333-3333-3333-3333-333333333333',
-          type: 'meeting',
-          description: 'Reunião de apresentação da solução',
-          outcome: 'Muito interessado, vai avaliar internamente',
-          follow_up_required: true,
-          next_action: 'Follow-up em 1 semana',
-          duration_minutes: 45,
-          created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-          lead_name: 'Carlos Eduardo Lima'
+      // Fetch real activities from API
+      try {
+        const activitiesRes = await fetch('http://localhost:3000/backoffice/activities', { headers })
+        if (activitiesRes.ok) {
+          const activitiesData = await activitiesRes.json()
+          setActivities(activitiesData)
+        } else {
+          // Fallback to empty array if no activities
+          setActivities([])
         }
-      ])
+      } catch (actErr) {
+        console.log('No activities found, starting with empty list')
+        setActivities([])
+      }
 
     } catch (err) {
       console.error('Error fetching data:', err)
+      setActivities([])
     } finally {
       setLoading(false)
     }
@@ -108,6 +85,11 @@ export function ActivitiesManager() {
 
   const handleCreateActivity = async () => {
     try {
+      if (!newActivity.leadId || !newActivity.description) {
+        alert('Por favor, selecione um lead e adicione uma descrição')
+        return
+      }
+
       const token = localStorage.getItem('auth_token')
       const response = await fetch('http://localhost:3000/backoffice/activities', {
         method: 'POST',
@@ -119,10 +101,10 @@ export function ActivitiesManager() {
           leadId: newActivity.leadId,
           type: newActivity.type,
           description: newActivity.description,
-          outcome: newActivity.outcome,
+          outcome: newActivity.outcome || null,
           follow_up_required: newActivity.follow_up_required,
-          next_action: newActivity.next_action,
-          duration_minutes: parseInt(newActivity.duration_minutes) || null
+          next_action: newActivity.next_action || null,
+          duration_minutes: newActivity.duration_minutes ? parseInt(newActivity.duration_minutes) : null
         })
       })
 
@@ -137,10 +119,15 @@ export function ActivitiesManager() {
           next_action: '',
           duration_minutes: ''
         })
-        fetchData()
+        await fetchData() // Refresh the activities list
+      } else {
+        const errorData = await response.json()
+        console.error('Error creating activity:', errorData)
+        alert('Erro ao criar atividade: ' + (errorData.error || 'Erro desconhecido'))
       }
     } catch (err) {
       console.error('Error creating activity:', err)
+      alert('Erro ao criar atividade: ' + err.message)
     }
   }
 
@@ -149,6 +136,7 @@ export function ActivitiesManager() {
       case 'call': return <Phone />
       case 'email': return <Email />
       case 'meeting': return <VideoCall />
+      case 'whatsapp': return <Phone />
       case 'task': return <Event />
       default: return <Note />
     }
@@ -159,6 +147,7 @@ export function ActivitiesManager() {
       case 'call': return 'primary'
       case 'email': return 'info'
       case 'meeting': return 'success'
+      case 'whatsapp': return 'secondary'
       case 'task': return 'warning'
       default: return 'default'
     }
@@ -256,68 +245,78 @@ export function ActivitiesManager() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {activities.map((activity) => (
-                  <TableRow key={activity.id} hover>
-                    <TableCell>
-                      <Chip
-                        icon={getActivityIcon(activity.type)}
-                        label={activity.type}
-                        color={getActivityColor(activity.type) as any}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight="bold">
-                        {activity.lead_name}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {activity.description}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
+                {activities.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center">
                       <Typography variant="body2" color="text.secondary">
-                        {activity.outcome || '-'}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      {activity.duration_minutes ? `${activity.duration_minutes}min` : '-'}
-                    </TableCell>
-                    <TableCell>
-                      {activity.follow_up_required ? (
-                        <Box>
-                          <Chip
-                            icon={<CheckCircle />}
-                            label="Sim"
-                            color="warning"
-                            size="small"
-                          />
-                          {activity.next_action && (
-                            <Typography variant="caption" display="block" sx={{ mt: 1 }}>
-                              {activity.next_action}
-                            </Typography>
-                          )}
-                        </Box>
-                      ) : (
-                        <Chip
-                          icon={<Cancel />}
-                          label="Não"
-                          color="default"
-                          size="small"
-                        />
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {new Date(activity.created_at).toLocaleDateString('pt-BR')}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {new Date(activity.created_at).toLocaleTimeString('pt-BR')}
+                        Nenhuma atividade encontrada. Crie a primeira atividade!
                       </Typography>
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  activities.map((activity) => (
+                    <TableRow key={activity.id} hover>
+                      <TableCell>
+                        <Chip
+                          icon={getActivityIcon(activity.type)}
+                          label={activity.type}
+                          color={getActivityColor(activity.type) as any}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight="bold">
+                          {activity.lead_name || 'Lead não encontrado'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {activity.description}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          {activity.outcome || '-'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        {activity.duration_minutes ? `${activity.duration_minutes}min` : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {activity.follow_up_required ? (
+                          <Box>
+                            <Chip
+                              icon={<CheckCircle />}
+                              label="Sim"
+                              color="warning"
+                              size="small"
+                            />
+                            {activity.next_action && (
+                              <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+                                {activity.next_action}
+                              </Typography>
+                            )}
+                          </Box>
+                        ) : (
+                          <Chip
+                            icon={<Cancel />}
+                            label="Não"
+                            color="default"
+                            size="small"
+                          />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {new Date(activity.created_at).toLocaleDateString('pt-BR')}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {new Date(activity.created_at).toLocaleTimeString('pt-BR')}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </TableContainer>
@@ -354,6 +353,7 @@ export function ActivitiesManager() {
                   <MenuItem value="call">📞 Ligação</MenuItem>
                   <MenuItem value="email">✉️ Email</MenuItem>
                   <MenuItem value="meeting">🤝 Reunião</MenuItem>
+                  <MenuItem value="whatsapp">💬 WhatsApp</MenuItem>
                   <MenuItem value="task">📋 Tarefa</MenuItem>
                   <MenuItem value="note">📝 Anotação</MenuItem>
                 </Select>
@@ -416,7 +416,11 @@ export function ActivitiesManager() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenDialog(false)}>Cancelar</Button>
-          <Button onClick={handleCreateActivity} variant="contained">
+          <Button 
+            onClick={handleCreateActivity} 
+            variant="contained"
+            disabled={!newActivity.leadId || !newActivity.description}
+          >
             ✅ Criar Atividade
           </Button>
         </DialogActions>
