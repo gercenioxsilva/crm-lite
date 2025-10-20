@@ -457,12 +457,21 @@ export async function registerRoutes(app: FastifyInstance) {
   // Custom Fields Management
   app.get('/custom-fields', async (req, reply) => {
     try {
-      const result = await pool.query('SELECT * FROM get_active_custom_fields()');
+      console.log('Fetching custom fields...');
+      const result = await pool.query(`
+        SELECT id, name, label, field_type, is_required, placeholder, 
+               help_text, options, validation_rules, display_order, is_active
+        FROM custom_fields 
+        WHERE is_active = true 
+        ORDER BY display_order, created_at
+      `);
+      console.log('Custom fields result:', result.rows.length, 'fields found');
       return result.rows;
     } catch (error: any) {
+      console.error('Custom fields error:', error);
       app.log.error(error);
       reply.code(500);
-      return { error: 'Internal server error' };
+      return { error: 'Internal server error', details: error.message };
     }
   });
 

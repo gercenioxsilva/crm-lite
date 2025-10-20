@@ -37,7 +37,8 @@ async function runMigrations() {
       '0002_crm_struct.sql', 
       '0003_sample_data.sql',
       '0004_crm_enhancements.sql',
-      '0005_pipefy_crm_complete.sql'
+      '0005_pipefy_crm_complete.sql',
+      '0008_custom_fields_simple.sql'
     ];
 
     for (const migration of migrations) {

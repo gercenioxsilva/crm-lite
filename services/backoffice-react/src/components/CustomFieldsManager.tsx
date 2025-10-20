@@ -3,7 +3,8 @@ import {
   Box, Card, CardContent, Typography, Button, Dialog, DialogTitle,
   DialogContent, DialogActions, TextField, Grid, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, Paper, Chip, MenuItem,
-  Select, FormControl, InputLabel, Switch, FormControlLabel, IconButton
+  Select, FormControl, InputLabel, Switch, FormControlLabel, IconButton,
+  CircularProgress, Alert
 } from '@mui/material'
 import { Add, Edit, Delete, DragIndicator } from '@mui/icons-material'
 
@@ -23,6 +24,8 @@ interface CustomField {
 
 export function CustomFieldsManager() {
   const [fields, setFields] = useState<CustomField[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [openDialog, setOpenDialog] = useState(false)
   const [editingField, setEditingField] = useState<CustomField | null>(null)
   const [newField, setNewField] = useState({
@@ -49,6 +52,9 @@ export function CustomFieldsManager() {
 
   const fetchFields = async () => {
     try {
+      setLoading(true)
+      setError(null)
+      console.log('Fetching custom fields from frontend...')
       const token = localStorage.getItem('auth_token') || 'mock-admin-token'
       const response = await fetch('http://localhost:3000/backoffice/custom-fields', {
         headers: {
@@ -57,12 +63,24 @@ export function CustomFieldsManager() {
         }
       })
 
+      console.log('Response status:', response.status)
+      
       if (response.ok) {
         const data = await response.json()
-        setFields(data)
+        console.log('Custom fields data:', data)
+        setFields(Array.isArray(data) ? data : [])
+      } else {
+        const errorData = await response.text()
+        console.error('API Error:', response.status, errorData)
+        setError(`Erro ${response.status}: ${errorData}`)
+        setFields([])
       }
     } catch (error) {
       console.error('Error fetching custom fields:', error)
+      setError('Erro de conexão')
+      setFields([])
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -173,6 +191,28 @@ export function CustomFieldsManager() {
   useEffect(() => {
     fetchFields()
   }, [])
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+        <Typography sx={{ ml: 2 }}>Carregando campos customizáveis...</Typography>
+      </Box>
+    )
+  }
+
+  if (error) {
+    return (
+      <Box>
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+        <Button onClick={fetchFields} variant="outlined">
+          Tentar Novamente
+        </Button>
+      </Box>
+    )
+  }
 
   return (
     <Box>

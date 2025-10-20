@@ -1,0 +1,88 @@
+name: Deploy CRM to AWS
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+  ECS_CLUSTER: crm-cluster
+  ECS_SERVICE_PREFIX: crm
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Set environment variables
+      run: |
+        echo "ENVIRONMENT=${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}" >> $GITHUB_ENV
+        echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
+
+    - name: Build and push Docker images
+      run: |
+        # Build and push all services
+        services=("api-gateway" "auth" "leads" "email" "whatsapp" "landing-react" "backoffice-react")
+        
+        for service in "${services[@]}"; do
+          echo "Building $service..."
+          docker build -t $ECR_REGISTRY/crm-$service:$IMAGE_TAG ./services/$service
+          docker push $ECR_REGISTRY/crm-$service:$IMAGE_TAG
+          docker tag $ECR_REGISTRY/crm-$service:$IMAGE_TAG $ECR_REGISTRY/crm-$service:latest
+          docker push $ECR_REGISTRY/crm-$service:latest
+        done
+
+    - name: Deploy infrastructure with Terraform
+      working-directory: ./terraform
+      run: |
+        terraform init
+        terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT
+        terraform plan -var="environment=$ENVIRONMENT" -var="image_tag=$IMAGE_TAG"
+        terraform apply -auto-approve -var="environment=$ENVIRONMENT" -var="image_tag=$IMAGE_TAG"
+
+    - name: Update ECS services
+      run: |
+        services=("api-gateway" "auth" "leads" "email" "whatsapp" "landing" "backoffice")
+        
+        for service in "${services[@]}"; do
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER-$ENVIRONMENT \
+            --service $ECS_SERVICE_PREFIX-$service-$ENVIRONMENT \
+            --force-new-deployment
+        done
+
+    - name: Wait for deployment
+      run: |
+        services=("api-gateway" "auth" "leads" "email" "whatsapp" "landing" "backoffice")
+        
+        for service in "${services[@]}"; do
+          aws ecs wait services-stable \
+            --cluster $ECS_CLUSTER-$ENVIRONMENT \
+            --services $ECS_SERVICE_PREFIX-$service-$ENVIRONMENT
+        done
+
+    - name: Run database migrations
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+      run: |
+        aws ecs run-task \
+          --cluster $ECS_CLUSTER-$ENVIRONMENT \
+          --task-definition crm-migrate-$ENVIRONMENT \
+          --launch-type FARGATE \
+          --network-configuration "awsvpcConfiguration={subnets=[${{ secrets.PRIVATE_SUBNET_IDS }}],securityGroups=[${{ secrets.ECS_SECURITY_GROUP_ID }}]}"
