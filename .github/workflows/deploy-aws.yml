@@ -46,6 +46,65 @@ jobs:
         aws s3api head-bucket --bucket crm-terraform-state-us-east-1 2>/dev/null || \
         aws s3api create-bucket --bucket crm-terraform-state-us-east-1 --region us-east-1
 
+    - name: Create IAM roles for ECS
+      run: |
+        # Verificar se ecsTaskExecutionRole existe
+        if ! aws iam get-role --role-name ecsTaskExecutionRole >/dev/null 2>&1; then
+          echo "📝 Criando ecsTaskExecutionRole..."
+          aws iam create-role \
+            --role-name ecsTaskExecutionRole \
+            --assume-role-policy-document '{
+              "Version": "2012-10-17",
+              "Statement": [{
+                "Effect": "Allow",
+                "Principal": {"Service": "ecs-tasks.amazonaws.com"},
+                "Action": "sts:AssumeRole"
+              }]
+            }'
+          aws iam attach-role-policy \
+            --role-name ecsTaskExecutionRole \
+            --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+          echo "✅ ecsTaskExecutionRole criado"
+        else
+          echo "✅ ecsTaskExecutionRole já existe"
+        fi
+        
+        # Verificar se ecsTaskRole existe
+        if ! aws iam get-role --role-name ecsTaskRole >/dev/null 2>&1; then
+          echo "📝 Criando ecsTaskRole..."
+          aws iam create-role \
+            --role-name ecsTaskRole \
+            --assume-role-policy-document '{
+              "Version": "2012-10-17",
+              "Statement": [{
+                "Effect": "Allow",
+                "Principal": {"Service": "ecs-tasks.amazonaws.com"},
+                "Action": "sts:AssumeRole"
+              }]
+            }'
+          aws iam put-role-policy \
+            --role-name ecsTaskRole \
+            --policy-name SESAndSQSAccess \
+            --policy-document '{
+              "Version": "2012-10-17",
+              "Statement": [{
+                "Effect": "Allow",
+                "Action": [
+                  "ses:SendEmail",
+                  "ses:SendRawEmail",
+                  "sqs:SendMessage",
+                  "sqs:ReceiveMessage",
+                  "sqs:DeleteMessage",
+                  "sqs:GetQueueAttributes"
+                ],
+                "Resource": "*"
+              }]
+            }'
+          echo "✅ ecsTaskRole criado"
+        else
+          echo "✅ ecsTaskRole já existe"
+        fi
+
     - name: Create ECR repositories
       run: |
         services=("api-gateway" "auth" "leads" "email" "whatsapp" "landing-react" "backoffice-react")
@@ -78,30 +137,55 @@ jobs:
 
     - name: Update ECS services
       run: |
-        services=("api-gateway" "auth" "leads" "email" "whatsapp" "landing" "backoffice")
+        # Only update services that exist in our current Terraform configuration
+        services=("api-gateway" "auth" "leads")
         
         for service in "${services[@]}"; do
-          aws ecs update-service \
-            --cluster $ECS_CLUSTER-$ENVIRONMENT \
-            --service $ECS_SERVICE_PREFIX-$service-$ENVIRONMENT \
-            --force-new-deployment
+          if aws ecs describe-services --cluster $ECS_CLUSTER-$ENVIRONMENT --services $ECS_SERVICE_PREFIX-$service-$ENVIRONMENT >/dev/null 2>&1; then
+            echo "Updating service: $service"
+            aws ecs update-service \
+              --cluster $ECS_CLUSTER-$ENVIRONMENT \
+              --service $ECS_SERVICE_PREFIX-$service-$ENVIRONMENT \
+              --force-new-deployment
+          else
+            echo "Service $service not found, skipping update..."
+          fi
         done
 
     - name: Wait for deployment
       run: |
-        services=("api-gateway" "auth" "leads" "email" "whatsapp" "landing" "backoffice")
+        services=("api-gateway" "auth" "leads")
         
         for service in "${services[@]}"; do
-          aws ecs wait services-stable \
-            --cluster $ECS_CLUSTER-$ENVIRONMENT \
-            --services $ECS_SERVICE_PREFIX-$service-$ENVIRONMENT
+          if aws ecs describe-services --cluster $ECS_CLUSTER-$ENVIRONMENT --services $ECS_SERVICE_PREFIX-$service-$ENVIRONMENT >/dev/null 2>&1; then
+            echo "Waiting for $service to be stable..."
+            aws ecs wait services-stable \
+              --cluster $ECS_CLUSTER-$ENVIRONMENT \
+              --services $ECS_SERVICE_PREFIX-$service-$ENVIRONMENT
+          else
+            echo "Service $service not found, skipping..."
+          fi
         done
 
     - name: Run database migrations
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
       run: |
+        # Get infrastructure info from AWS
+        VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=crm-vpc-$ENVIRONMENT" --query 'Vpcs[0].VpcId' --output text)
+        PRIVATE_SUBNETS=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=crm-private-subnet-*-$ENVIRONMENT" --query 'Subnets[].SubnetId' --output text | tr '\t' ',')
+        SECURITY_GROUP=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=crm-ecs-tasks-$ENVIRONMENT" --query 'SecurityGroups[0].GroupId' --output text)
+        
+        echo "Running migrations with subnets: $PRIVATE_SUBNETS and security group: $SECURITY_GROUP"
+        
+        # Use leads service to run migrations
         aws ecs run-task \
           --cluster $ECS_CLUSTER-$ENVIRONMENT \
-          --task-definition crm-migrate-$ENVIRONMENT \
+          --task-definition crm-leads-$ENVIRONMENT \
           --launch-type FARGATE \
-          --network-configuration "awsvpcConfiguration={subnets=[${{ secrets.PRIVATE_SUBNET_IDS }}],securityGroups=[${{ secrets.ECS_SECURITY_GROUP_ID }}]}"
+          --network-configuration "awsvpcConfiguration={subnets=[$PRIVATE_SUBNETS],securityGroups=[$SECURITY_GROUP]}" \
+          --overrides '{
+            "containerOverrides": [{
+              "name": "leads",
+              "command": ["npm", "run", "migrate"]
+            }]
+          }'
