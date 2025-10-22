@@ -41,6 +41,11 @@ jobs:
       with:
         terraform_version: 1.5.0
 
+    - name: Create Terraform state bucket
+      run: |
+        aws s3api head-bucket --bucket crm-terraform-state-us-east-1 2>/dev/null || \
+        aws s3api create-bucket --bucket crm-terraform-state-us-east-1 --region us-east-1
+
     - name: Create ECR repositories
       run: |
         services=("api-gateway" "auth" "leads" "email" "whatsapp" "landing-react" "backoffice-react")
