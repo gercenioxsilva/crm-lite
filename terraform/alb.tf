@@ -194,8 +194,6 @@ resource "aws_service_discovery_service" "auth" {
     routing_policy = "MULTIVALUE"
   }
 
-  health_check_grace_period_seconds = 30
-
   tags = {
     Name        = "crm-auth-service-${var.environment}"
     Environment = var.environment
@@ -216,8 +214,6 @@ resource "aws_service_discovery_service" "leads" {
     routing_policy = "MULTIVALUE"
   }
 
-  health_check_grace_period_seconds = 30
-
   tags = {
     Name        = "crm-leads-service-${var.environment}"
     Environment = var.environment
@@ -237,8 +233,6 @@ resource "aws_service_discovery_service" "email" {
 
     routing_policy = "MULTIVALUE"
   }
-
-  health_check_grace_period_seconds = 30
 
   tags = {
     Name        = "crm-email-service-${var.environment}"
