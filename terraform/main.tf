@@ -9,7 +9,7 @@ terraform {
   backend "s3" {
     bucket = "crm-terraform-state"
     key    = "crm/terraform.tfstate"
-    region = "us-east-1"
+    region = "eu-central-1"
   }
 }
 
