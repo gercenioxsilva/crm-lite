@@ -10,7 +10,7 @@ export class MockWhatsAppService implements WhatsAppService {
     const mockMessage = {
       ...message,
       id: messageId,
-      status: 'sent' as const,
+      status: 'sent' as 'pending' | 'sent' | 'delivered' | 'read' | 'failed',
       timestamp: new Date()
     };
 
