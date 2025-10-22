@@ -54,7 +54,7 @@ output "sqs_queue_url" {
 output "ecr_repositories" {
   description = "ECR repository URLs"
   value = {
-    for k, v in aws_ecr_repository.services : k => v.repository_url
+    for k, v in data.aws_ecr_repository.services : k => v.repository_url
   }
 }
 
