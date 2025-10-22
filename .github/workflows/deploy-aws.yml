@@ -36,6 +36,11 @@ jobs:
         echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
         echo "ECR_REGISTRY=$(aws sts get-caller-identity --query Account --output text).dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com" >> $GITHUB_ENV
 
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.5.0
+
     - name: Create ECR repositories
       run: |
         services=("api-gateway" "auth" "leads" "email" "whatsapp" "landing-react" "backoffice-react")
