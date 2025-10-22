@@ -53,17 +53,6 @@ resource "aws_ses_event_destination" "cloudwatch" {
   }
 }
 
-# CloudWatch Log Group
-resource "aws_cloudwatch_log_group" "ecs" {
-  name              = "/ecs/crm-${var.environment}"
-  retention_in_days = var.environment == "prod" ? 30 : 7
-
-  tags = {
-    Name        = "crm-ecs-logs-${var.environment}"
-    Environment = var.environment
-  }
-}
-
 # CloudWatch Log Group for Email Service
 resource "aws_cloudwatch_log_group" "email" {
   name              = "/aws/lambda/crm-email-${var.environment}"
