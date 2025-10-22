@@ -13,16 +13,9 @@ resource "aws_ecs_cluster" "main" {
   }
 }
 
-# Try to use existing ECS roles or fallback to AWS managed service roles
-data "aws_iam_role" "ecs_task_execution_role" {
-  name = "ecsTaskExecutionRole"
-}
-
-# Fallback to AWS managed service role if custom role doesn't exist
+# Use hardcoded ARN for ecsTaskExecutionRole to avoid permission issues
 locals {
   ecs_task_execution_role_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/ecsTaskExecutionRole"
-  # Use a minimal task role ARN - ECS will use the execution role if task role is not specified
-  ecs_task_role_arn = null
 }
 
 # Security Groups
