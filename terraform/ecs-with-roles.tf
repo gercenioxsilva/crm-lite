@@ -13,6 +13,11 @@ resource "aws_ecs_cluster" "main" {
   }
 }
 
+# Use hardcoded ARN for ecsTaskExecutionRole to avoid permission issues
+locals {
+  ecs_task_execution_role_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/ecsTaskExecutionRole"
+}
+
 # Security Groups
 resource "aws_security_group" "ecs_tasks" {
   name        = "crm-ecs-tasks-${var.environment}"
@@ -40,6 +45,7 @@ resource "aws_security_group" "ecs_tasks" {
 }
 
 # ECR Repositories (created by GitHub Actions workflow)
+# Using data sources to reference existing repositories
 data "aws_ecr_repository" "services" {
   for_each = toset([
     "crm-api-gateway",
@@ -65,13 +71,14 @@ resource "aws_cloudwatch_log_group" "ecs" {
   }
 }
 
-# Task Definitions without execution roles
+# Task Definitions
 resource "aws_ecs_task_definition" "api_gateway" {
   family                   = "crm-api-gateway-${var.environment}"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   cpu                      = "256"
   memory                   = "512"
+  execution_role_arn       = local.ecs_task_execution_role_arn
 
   container_definitions = jsonencode([
     {
@@ -116,6 +123,7 @@ resource "aws_ecs_task_definition" "auth" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = "256"
   memory                   = "512"
+  execution_role_arn       = local.ecs_task_execution_role_arn
 
   container_definitions = jsonencode([
     {
@@ -159,6 +167,7 @@ resource "aws_ecs_task_definition" "leads" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = "256"
   memory                   = "512"
+  execution_role_arn       = local.ecs_task_execution_role_arn
 
   container_definitions = jsonencode([
     {
