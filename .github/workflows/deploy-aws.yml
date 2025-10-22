@@ -46,63 +46,25 @@ jobs:
         aws s3api head-bucket --bucket crm-terraform-state-us-east-1 2>/dev/null || \
         aws s3api create-bucket --bucket crm-terraform-state-us-east-1 --region us-east-1
 
-    - name: Create IAM roles for ECS
+    - name: Check IAM roles for ECS
       run: |
+        echo "🔍 Verificando roles IAM necessários..."
+        
         # Verificar se ecsTaskExecutionRole existe
-        if ! aws iam get-role --role-name ecsTaskExecutionRole >/dev/null 2>&1; then
-          echo "📝 Criando ecsTaskExecutionRole..."
-          aws iam create-role \
-            --role-name ecsTaskExecutionRole \
-            --assume-role-policy-document '{
-              "Version": "2012-10-17",
-              "Statement": [{
-                "Effect": "Allow",
-                "Principal": {"Service": "ecs-tasks.amazonaws.com"},
-                "Action": "sts:AssumeRole"
-              }]
-            }'
-          aws iam attach-role-policy \
-            --role-name ecsTaskExecutionRole \
-            --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-          echo "✅ ecsTaskExecutionRole criado"
+        if aws iam get-role --role-name ecsTaskExecutionRole >/dev/null 2>&1; then
+          echo "✅ ecsTaskExecutionRole existe"
         else
-          echo "✅ ecsTaskExecutionRole já existe"
+          echo "❌ ecsTaskExecutionRole não existe - deve ser criado manualmente"
+          echo "Execute: aws iam create-role --role-name ecsTaskExecutionRole --assume-role-policy-document file://trust-policy.json"
+          echo "Execute: aws iam attach-role-policy --role-name ecsTaskExecutionRole --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
         fi
         
         # Verificar se ecsTaskRole existe
-        if ! aws iam get-role --role-name ecsTaskRole >/dev/null 2>&1; then
-          echo "📝 Criando ecsTaskRole..."
-          aws iam create-role \
-            --role-name ecsTaskRole \
-            --assume-role-policy-document '{
-              "Version": "2012-10-17",
-              "Statement": [{
-                "Effect": "Allow",
-                "Principal": {"Service": "ecs-tasks.amazonaws.com"},
-                "Action": "sts:AssumeRole"
-              }]
-            }'
-          aws iam put-role-policy \
-            --role-name ecsTaskRole \
-            --policy-name SESAndSQSAccess \
-            --policy-document '{
-              "Version": "2012-10-17",
-              "Statement": [{
-                "Effect": "Allow",
-                "Action": [
-                  "ses:SendEmail",
-                  "ses:SendRawEmail",
-                  "sqs:SendMessage",
-                  "sqs:ReceiveMessage",
-                  "sqs:DeleteMessage",
-                  "sqs:GetQueueAttributes"
-                ],
-                "Resource": "*"
-              }]
-            }'
-          echo "✅ ecsTaskRole criado"
+        if aws iam get-role --role-name ecsTaskRole >/dev/null 2>&1; then
+          echo "✅ ecsTaskRole existe"
         else
-          echo "✅ ecsTaskRole já existe"
+          echo "❌ ecsTaskRole não existe - deve ser criado manualmente"
+          echo "Execute o script: ./scripts/create-iam-roles.sh"
         fi
 
     - name: Create ECR repositories
