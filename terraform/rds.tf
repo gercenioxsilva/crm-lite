@@ -33,7 +33,7 @@ resource "aws_db_instance" "postgres" {
   identifier = "crm-postgres-${var.environment}"
 
   engine         = "postgres"
-  engine_version = "16.1"
+  engine_version = "16.4"
   instance_class = var.environment == "prod" ? "db.t3.small" : "db.t3.micro"
 
   allocated_storage     = var.environment == "prod" ? 100 : 20
