@@ -36,6 +36,15 @@ jobs:
         echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
         echo "ECR_REGISTRY=$(aws sts get-caller-identity --query Account --output text).dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com" >> $GITHUB_ENV
 
+    - name: Create ECR repositories
+      run: |
+        services=("api-gateway" "auth" "leads" "email" "whatsapp" "landing-react" "backoffice-react")
+        
+        for service in "${services[@]}"; do
+          aws ecr describe-repositories --repository-names crm-$service 2>/dev/null || \
+          aws ecr create-repository --repository-name crm-$service --region ${{ env.AWS_REGION }}
+        done
+
     - name: Build and push Docker images
       run: |
         # Build and push all services
