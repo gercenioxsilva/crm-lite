@@ -239,7 +239,7 @@ resource "aws_ecs_service" "auth" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    security_groups = [aws_security_group.ecs_tasks.id]
+    security_groups = [aws_security_group.internal_services.id]
     subnets         = aws_subnet.private[*].id
   }
 
@@ -261,7 +261,7 @@ resource "aws_ecs_service" "leads" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    security_groups = [aws_security_group.ecs_tasks.id]
+    security_groups = [aws_security_group.internal_services.id]
     subnets         = aws_subnet.private[*].id
   }
 
