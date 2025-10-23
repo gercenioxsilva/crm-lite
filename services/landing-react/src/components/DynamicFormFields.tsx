@@ -23,7 +23,8 @@ export const DynamicFormFields: React.FC<DynamicFormFieldsProps> = ({ onFieldCha
   useEffect(() => {
     const fetchCustomFields = async () => {
       try {
-        const response = await fetch('/api/public/custom-fields')
+        const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3000')
+        const response = await fetch(`${apiUrl}/public/custom-fields`)
         if (response.ok) {
           const fields = await response.json()
           setCustomFields(fields.sort((a: CustomField, b: CustomField) => a.display_order - b.display_order))
