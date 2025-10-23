@@ -45,6 +45,10 @@
 11. **Apenas landing funcionando** → Corrigido ALB routing e service discovery
 12. **Landing page erro conexão** → Configurado URLs relativas para produção AWS
 13. **Backoffice erro conexão** → Aplicadas mesmas correções de URL para AWS
+14. **Vulnerabilidade data exfiltration** → Implementado security hardening com zero-trust
+15. **Frontends não carregando** → Corrigida comunicação após security hardening
+16. **Custom fields 404 error** → Corrigido DynamicFormFields para usar API correta
+17. **POST /api/public/leads 404** → Corrigidas regras ALB para roteamento correto
 
 ### Workflow GitHub Actions
 ```yaml
@@ -160,6 +164,8 @@ git push origin main   # Trigger deploy automático
 - Domínio personalizado e SSL
 - Monitoramento avançado (CloudWatch)
 - Backup automatizado
+- WAF (Web Application Firewall)
+- Auditoria de segurança avançada
 
 ## 🐛 Problemas Conhecidos
 
@@ -177,23 +183,30 @@ git push origin main   # Trigger deploy automático
 - ✅ Production environment configuration
 - ✅ Landing page form submission
 - ✅ Backoffice dashboard data loading
+- ✅ Data exfiltration prevention (zero-trust network)
+- ✅ Security hardening with VPC endpoints
+- ✅ Service-to-service communication security
+- ✅ ALB routing configuration
+- ✅ API Gateway route registration
 
 ### Em Monitoramento
-- 🔍 Performance do banco SQLite
+- 🔍 Performance do banco PostgreSQL
 - 🔍 Rate limits AWS SES
 - 🔍 Timeout WhatsApp API
+- 🔍 Security groups e VPC endpoints
+- 🔍 Comunicação entre microserviços
 
 ## 📝 Commits Recentes
 
 ```
+6a3a56d - fix: resolve 404 error for POST /api/public/leads route
+71e665d - fix: resolve frontend connectivity issues after security hardening
+02842fe - security: implement data exfiltration prevention measures
+23c9e7f - fix: resolve 404 error for custom-fields API call in landing page
+430001d - docs: update context with frontend connection fixes for AWS
 bfb8389 - fix: resolve backoffice API connection for AWS environment
 a3ca0f3 - fix: resolve landing page API connection in AWS environment
 588b918 - docs: update context history with successful AWS deployment
-3da4866 - fix: correct ALB routing and service discovery configuration
-26f0056 - fix: correct database connection to use DATABASE_URL
-f99981f - fix: add IAM roles for ECS Fargate task definitions
-4d0d9d1 - fix: remove duplicate terraform files causing resource conflicts
-89a3977 - fix: add terraform cache cleanup to deployment workflow
 ```
 
 ## 🔗 Documentação Relacionada
@@ -206,12 +219,16 @@ f99981f - fix: add IAM roles for ECS Fargate task definitions
 
 ---
 
-**Última atualização**: Deploy AWS TOTALMENTE FUNCIONAL! Sistema CRM completo rodando no ECS Fargate com:
+**Última atualização**: Deploy AWS TOTALMENTE FUNCIONAL E SEGURO! Sistema CRM completo rodando no ECS Fargate com:
 - ✅ Todos os 7 microserviços operacionais
 - ✅ Landing page capturando leads corretamente
 - ✅ Dashboard CRM carregando dados em tempo real
 - ✅ API Gateway roteando todas as requisições
 - ✅ Banco PostgreSQL conectado e funcional
 - ✅ ALB distribuindo tráfego corretamente
+- ✅ **SEGURANÇA HARDENING**: Zero-trust network implementado
+- ✅ **PREVENÇÃO DATA EXFILTRATION**: Microserviços sem acesso internet
+- ✅ **VPC ENDPOINTS**: Comunicação AWS sem internet
+- ✅ **SECURITY GROUPS**: Segmentação por tipo de serviço
 
-Sistema 100% operacional e pronto para uso em produção!
+Sistema 100% operacional, seguro e pronto para uso em produção empresarial!

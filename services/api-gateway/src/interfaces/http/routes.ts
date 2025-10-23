@@ -90,7 +90,7 @@ async function verifyGoogleIdToken(idToken: string) {
 // Leads client
 async function createLead(input: any) {
   try {
-    const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/leads`, {
+    const response = await fetch(`${process.env.LEADS_BASE_URL}/leads`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -158,7 +158,7 @@ export async function registerRoutes(app: FastifyInstance){
   // Get custom fields for public forms
   app.get('/public/custom-fields', { schema: { tags: ['public'], summary: 'Get active custom fields' } as any }, async (req) => {
     try {
-      const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/custom-fields`);
+      const response = await fetch(`${process.env.LEADS_BASE_URL}/custom-fields`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
