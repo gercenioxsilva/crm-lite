@@ -27,7 +27,9 @@
 - ✅ Imagens Docker buildadas e enviadas
 - ✅ Terraform configurado com backend S3
 - ✅ Bucket S3: `crm-terraform-state-us-east-1`
-- 🔄 **Em andamento**: Deploy da infraestrutura ECS
+- ✅ **CONCLUÍDO**: Deploy da infraestrutura ECS
+- ✅ **FUNCIONANDO**: Todos os serviços rodando no AWS ECS Fargate
+- ✅ **ALB CONFIGURADO**: Application Load Balancer roteando corretamente
 
 ### Correções Realizadas no Deploy
 1. **ECR_REGISTRY vazio** → Obtém AWS Account ID automaticamente
@@ -37,6 +39,10 @@
 5. **Terraform não instalado** → Adicionado setup-terraform action
 6. **Backend S3 região errada** → Bucket criado em us-east-1
 7. **Argumentos inválidos Terraform** → Removido health_check_grace_period_seconds
+8. **Recursos duplicados Terraform** → Removidos arquivos *-with-roles.tf
+9. **IAM roles faltando** → Criados ecsTaskExecutionRole e ecsTaskRole
+10. **Conexão banco falhou** → Corrigido DATABASE_URL no serviço leads
+11. **Apenas landing funcionando** → Corrigido ALB routing e service discovery
 
 ### Workflow GitHub Actions
 ```yaml
@@ -126,16 +132,21 @@ git push origin main   # Trigger deploy automático
 - WhatsApp Service: http://localhost:3050
 
 ### Produção (AWS)
-- 🔄 **Em configuração**: URLs serão definidas após deploy completo
+- ✅ **FUNCIONANDO**: URLs disponíveis via ALB DNS
+- **Landing**: `http://[ALB-DNS]/`
+- **API Gateway**: `http://[ALB-DNS]/api/health`
+- **CRM Dashboard**: `http://[ALB-DNS]/crm/`
+- **API Docs**: `http://[ALB-DNS]/api/docs`
 
 ## 📊 Próximos Passos
 
 ### Deploy AWS
 1. ✅ Corrigir erros Terraform
-2. 🔄 Finalizar deploy ECS
-3. ⏳ Configurar domínio e SSL
-4. ⏳ Configurar variáveis de ambiente
-5. ⏳ Testes de integração
+2. ✅ Finalizar deploy ECS
+3. ✅ Configurar variáveis de ambiente
+4. ✅ Testes de integração básicos
+5. ⏳ Configurar domínio e SSL
+6. ⏳ Configurar monitoramento avançado
 
 ### Funcionalidades Futuras
 - Dashboard analytics avançado
@@ -151,6 +162,11 @@ git push origin main   # Trigger deploy automático
 - ✅ Docker build issues
 - ✅ Terraform backend S3
 - ✅ Service discovery arguments
+- ✅ Terraform duplicate resources
+- ✅ ECS Fargate IAM roles
+- ✅ Database connection issues
+- ✅ ALB routing configuration
+- ✅ Service discovery for all services
 
 ### Em Monitoramento
 - 🔍 Performance do banco SQLite
@@ -160,14 +176,14 @@ git push origin main   # Trigger deploy automático
 ## 📝 Commits Recentes
 
 ```
+3da4866 - fix: correct ALB routing and service discovery configuration
+26f0056 - fix: correct database connection to use DATABASE_URL
+f99981f - fix: add IAM roles for ECS Fargate task definitions
+4d0d9d1 - fix: remove duplicate terraform files causing resource conflicts
+89a3977 - fix: add terraform cache cleanup to deployment workflow
 226045e - fix: remove argumentos inválidos dos recursos aws_service_discovery_service
 7201c3c - fix: cria bucket S3 automaticamente para Terraform state
 279c694 - fix: corrige região do backend S3 do Terraform para eu-central-1
-a0565c7 - fix: adiciona instalação do Terraform no workflow
-40d31e6 - fix: corrige erro TypeScript no MockWhatsAppService
-3c70dbe - fix: corrige Dockerfile do WhatsApp para usar npm install
-52908c6 - fix: adiciona criação automática de repositórios ECR
-da699a2 - fix: corrige ECR_REGISTRY obtendo AWS Account ID automaticamente
 ```
 
 ## 🔗 Documentação Relacionada
@@ -180,4 +196,4 @@ da699a2 - fix: corrige ECR_REGISTRY obtendo AWS Account ID automaticamente
 
 ---
 
-**Última atualização**: Deploy AWS em andamento - Terraform configurado e pronto para infraestrutura ECS
+**Última atualização**: Deploy AWS CONCLUÍDO com sucesso! Sistema CRM completo rodando no ECS Fargate com ALB, RDS PostgreSQL, DocumentDB e todos os microserviços funcionais. Próximo passo: configurar domínio personalizado e SSL.
