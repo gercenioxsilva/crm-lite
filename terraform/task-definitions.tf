@@ -245,6 +245,10 @@ resource "aws_ecs_service" "whatsapp" {
     subnets         = aws_subnet.private[*].id
   }
 
+  service_registries {
+    registry_arn = aws_service_discovery_service.whatsapp.arn
+  }
+
   tags = {
     Name        = "crm-whatsapp-${var.environment}"
     Environment = var.environment

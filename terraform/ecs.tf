@@ -90,9 +90,12 @@ resource "aws_ecs_task_definition" "api_gateway" {
       environment = [
         { name = "NODE_ENV", value = var.environment },
         { name = "PORT", value = "3000" },
-        { name = "AUTH_SERVICE_URL", value = "http://crm-auth-${var.environment}.crm.local:3050" },
-        { name = "LEADS_SERVICE_URL", value = "http://crm-leads-${var.environment}.crm.local:3020" },
-        { name = "EMAIL_SERVICE_URL", value = "http://crm-email-${var.environment}.crm.local:3040" }
+        { name = "API_GATEWAY_PORT", value = "3000" },
+        { name = "AUTH_BASE_URL", value = "http://crm-auth-${var.environment}.crm.local:3050" },
+        { name = "LEADS_BASE_URL", value = "http://crm-leads-${var.environment}.crm.local:3020" },
+        { name = "EMAIL_BASE_URL", value = "http://crm-email-${var.environment}.crm.local:3040" },
+        { name = "WHATSAPP_BASE_URL", value = "http://crm-whatsapp-${var.environment}.crm.local:3050" },
+        { name = "AUTH_JWT_SECRET", value = "your-super-secret-jwt-key-here" }
       ]
 
       logConfiguration = {

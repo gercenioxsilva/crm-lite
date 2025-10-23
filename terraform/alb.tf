@@ -147,7 +147,7 @@ resource "aws_lb_listener_rule" "api" {
 
   condition {
     path_pattern {
-      values = ["/api/*", "/backoffice/*", "/docs/*", "/health"]
+      values = ["/api/*", "/health"]
     }
   }
 }
@@ -236,6 +236,26 @@ resource "aws_service_discovery_service" "email" {
 
   tags = {
     Name        = "crm-email-service-${var.environment}"
+    Environment = var.environment
+  }
+}
+
+resource "aws_service_discovery_service" "whatsapp" {
+  name = "crm-whatsapp-${var.environment}"
+
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+
+    dns_records {
+      ttl  = 10
+      type = "A"
+    }
+
+    routing_policy = "MULTIVALUE"
+  }
+
+  tags = {
+    Name        = "crm-whatsapp-service-${var.environment}"
     Environment = var.environment
   }
 }
