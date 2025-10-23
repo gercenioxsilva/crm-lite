@@ -126,7 +126,7 @@ export async function registerRoutes(app: FastifyInstance){
   app.get('/', { schema: { tags: ['meta'], summary: 'Root' } as any }, async () => ({ name: 'Quiz CRM API Gateway' }));
   
   // Public lead creation
-  app.post('/public/leads', { schema: { tags: ['public','leads'], summary: 'Create lead from form' } as any }, async (req) => {
+  app.post('/api/public/leads', { schema: { tags: ['public','leads'], summary: 'Create lead from form' } as any }, async (req) => {
     const body = (req.body as any) || {};
     const lead = await createLead({
       name: body.name,
@@ -156,7 +156,7 @@ export async function registerRoutes(app: FastifyInstance){
   });
 
   // Get custom fields for public forms
-  app.get('/public/custom-fields', { schema: { tags: ['public'], summary: 'Get active custom fields' } as any }, async (req) => {
+  app.get('/api/public/custom-fields', { schema: { tags: ['public'], summary: 'Get active custom fields' } as any }, async (req) => {
     try {
       const response = await fetch(`${process.env.LEADS_BASE_URL}/custom-fields`);
       
@@ -171,7 +171,7 @@ export async function registerRoutes(app: FastifyInstance){
     }
   });
 
-  app.post('/public/leads/google', { schema: { tags: ['public','leads'], summary: 'Create lead from Google ID token' } as any }, async (req) => {
+  app.post('/api/public/leads/google', { schema: { tags: ['public','leads'], summary: 'Create lead from Google ID token' } as any }, async (req) => {
     const body = (req.body as any) || {};
     const credential = body.credential;
     if (!credential) {
@@ -191,7 +191,7 @@ export async function registerRoutes(app: FastifyInstance){
   app.register(async function (app) {
     app.addHook('preHandler', authMiddleware);
     
-    app.get('/secure/ping', { 
+    app.get('/api/secure/ping', { 
       preHandler: [requireScope('api:read')],
       schema: { tags: ['secure'], summary: 'Secure ping', security: [{ bearerAuth: [] }] } as any 
     }, async (req) => {
@@ -200,7 +200,7 @@ export async function registerRoutes(app: FastifyInstance){
     });
 
     // Backoffice routes
-    app.get('/backoffice/stats', {
+    app.get('/api/backoffice/stats', {
       preHandler: [requireScope('reports:read')],
       schema: { tags: ['backoffice'], summary: 'Dashboard stats', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
@@ -263,7 +263,7 @@ export async function registerRoutes(app: FastifyInstance){
       }
     });
 
-    app.get('/backoffice/chart', {
+    app.get('/api/backoffice/chart', {
       preHandler: [requireScope('reports:read')],
       schema: { tags: ['backoffice'], summary: 'Chart data', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
@@ -302,7 +302,7 @@ export async function registerRoutes(app: FastifyInstance){
       }
     });
 
-    app.get('/backoffice/leads', {
+    app.get('/api/backoffice/leads', {
       preHandler: [requireScope('leads:read')],
       schema: { tags: ['backoffice'], summary: 'List leads', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
@@ -341,7 +341,7 @@ export async function registerRoutes(app: FastifyInstance){
       }
     });
 
-    app.post('/backoffice/leads', {
+    app.post('/api/backoffice/leads', {
       preHandler: [requireScope('leads:write')],
       schema: { tags: ['backoffice'], summary: 'Create lead', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
@@ -368,7 +368,7 @@ export async function registerRoutes(app: FastifyInstance){
       }
     });
 
-    app.put('/backoffice/leads/:id', {
+    app.put('/api/backoffice/leads/:id', {
       preHandler: [requireScope('leads:write')],
       schema: { tags: ['backoffice'], summary: 'Update lead', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
@@ -396,7 +396,7 @@ export async function registerRoutes(app: FastifyInstance){
       }
     });
 
-    app.put('/backoffice/leads/:id/move', {
+    app.put('/api/backoffice/leads/:id/move', {
       preHandler: [requireScope('leads:write')],
       schema: { tags: ['backoffice'], summary: 'Move lead to stage', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
@@ -424,7 +424,7 @@ export async function registerRoutes(app: FastifyInstance){
       }
     });
 
-    app.get('/backoffice/activities', {
+    app.get('/api/backoffice/activities', {
       preHandler: [requireScope('leads:read')],
       schema: { tags: ['backoffice'], summary: 'List activities', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
@@ -442,7 +442,7 @@ export async function registerRoutes(app: FastifyInstance){
       }
     });
 
-    app.post('/backoffice/activities', {
+    app.post('/api/backoffice/activities', {
       preHandler: [requireScope('leads:write')],
       schema: { tags: ['backoffice'], summary: 'Create activity', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
@@ -506,7 +506,7 @@ export async function registerRoutes(app: FastifyInstance){
       }
     });
 
-    app.post('/backoffice/emails', {
+    app.post('/api/backoffice/emails', {
       preHandler: [requireScope('leads:write')],
       schema: { tags: ['backoffice'], summary: 'Send email', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
@@ -533,7 +533,7 @@ export async function registerRoutes(app: FastifyInstance){
       }
     });
 
-    app.get('/backoffice/emails/lead/:leadId', {
+    app.get('/api/backoffice/emails/lead/:leadId', {
       preHandler: [requireScope('leads:read')],
       schema: { tags: ['backoffice'], summary: 'Get lead emails', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
@@ -552,7 +552,7 @@ export async function registerRoutes(app: FastifyInstance){
       }
     });
 
-    app.get('/backoffice/pipeline', {
+    app.get('/api/backoffice/pipeline', {
       preHandler: [requireScope('leads:read')],
       schema: { tags: ['backoffice'], summary: 'Pipeline board', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
@@ -572,7 +572,7 @@ export async function registerRoutes(app: FastifyInstance){
     });
 
     // WhatsApp routes
-    app.post('/whatsapp/send-message', {
+    app.post('/api/whatsapp/send-message', {
       preHandler: [requireScope('leads:write')],
       schema: { tags: ['whatsapp'], summary: 'Send WhatsApp message', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
@@ -599,7 +599,7 @@ export async function registerRoutes(app: FastifyInstance){
       }
     });
 
-    app.post('/whatsapp/leads/:id/welcome', {
+    app.post('/api/whatsapp/leads/:id/welcome', {
       preHandler: [requireScope('leads:write')],
       schema: { tags: ['whatsapp'], summary: 'Send welcome WhatsApp', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
@@ -627,7 +627,7 @@ export async function registerRoutes(app: FastifyInstance){
       }
     });
 
-    app.post('/whatsapp/leads/:id/follow-up', {
+    app.post('/api/whatsapp/leads/:id/follow-up', {
       preHandler: [requireScope('leads:write')],
       schema: { tags: ['whatsapp'], summary: 'Send follow-up WhatsApp', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
@@ -655,7 +655,7 @@ export async function registerRoutes(app: FastifyInstance){
       }
     });
 
-    app.post('/whatsapp/leads/:id/qualification', {
+    app.post('/api/whatsapp/leads/:id/qualification', {
       preHandler: [requireScope('leads:write')],
       schema: { tags: ['whatsapp'], summary: 'Send qualification WhatsApp', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
@@ -684,7 +684,7 @@ export async function registerRoutes(app: FastifyInstance){
     });
 
     // Custom Fields Management
-    app.get('/backoffice/custom-fields', {
+    app.get('/api/backoffice/custom-fields', {
       preHandler: [requireScope('leads:read')],
       schema: { tags: ['backoffice'], summary: 'Get custom fields', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
@@ -702,7 +702,7 @@ export async function registerRoutes(app: FastifyInstance){
       }
     });
 
-    app.post('/backoffice/custom-fields', {
+    app.post('/api/backoffice/custom-fields', {
       preHandler: [requireScope('leads:write')],
       schema: { tags: ['backoffice'], summary: 'Create custom field', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
@@ -729,7 +729,7 @@ export async function registerRoutes(app: FastifyInstance){
       }
     });
 
-    app.put('/backoffice/custom-fields/:id', {
+    app.put('/api/backoffice/custom-fields/:id', {
       preHandler: [requireScope('leads:write')],
       schema: { tags: ['backoffice'], summary: 'Update custom field', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
@@ -757,7 +757,7 @@ export async function registerRoutes(app: FastifyInstance){
       }
     });
 
-    app.delete('/backoffice/custom-fields/:id', {
+    app.delete('/api/backoffice/custom-fields/:id', {
       preHandler: [requireScope('leads:write')],
       schema: { tags: ['backoffice'], summary: 'Delete custom field', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
