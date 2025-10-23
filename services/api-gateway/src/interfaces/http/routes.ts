@@ -115,6 +115,12 @@ async function createLead(input: any) {
 }
 
 export async function registerRoutes(app: FastifyInstance){
+  // Log all registered routes for debugging
+  app.addHook('onReady', async () => {
+    console.log('🚀 API Gateway routes registered:');
+    console.log(app.printRoutes());
+  });
+
   // Public routes
   app.get('/health', { schema: { tags: ['meta'], summary: 'Health' } as any }, async () => ({ status: 'ok', service: 'api-gateway' }));
   app.get('/', { schema: { tags: ['meta'], summary: 'Root' } as any }, async () => ({ name: 'Quiz CRM API Gateway' }));
