@@ -163,7 +163,23 @@ resource "aws_lb_listener_rule" "backoffice" {
 
   condition {
     path_pattern {
-      values = ["/backoffice", "/backoffice/*", "/assets/*"]
+      values = ["/backoffice", "/backoffice/*"]
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "landing" {
+  listener_arn = aws_lb_listener.main.arn
+  priority     = 300
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.landing.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/landing", "/landing/*"]
     }
   }
 }
