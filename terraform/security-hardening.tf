@@ -14,6 +14,15 @@ resource "aws_security_group" "internal_services" {
     cidr_blocks = [aws_vpc.main.cidr_block]
   }
 
+  # Permite comunicação do API Gateway
+  ingress {
+    from_port       = 0
+    to_port         = 65535
+    protocol        = "tcp"
+    security_groups = [aws_security_group.ecs_tasks.id]
+    description     = "Allow API Gateway communication"
+  }
+
   # Egress restrito - apenas VPC e AWS services
   egress {
     from_port   = 443
@@ -48,6 +57,15 @@ resource "aws_security_group" "external_api_services" {
     to_port   = 65535
     protocol  = "tcp"
     cidr_blocks = [aws_vpc.main.cidr_block]
+  }
+
+  # Permite comunicação do API Gateway
+  ingress {
+    from_port       = 0
+    to_port         = 65535
+    protocol        = "tcp"
+    security_groups = [aws_security_group.ecs_tasks.id]
+    description     = "Allow API Gateway communication"
   }
 
   # AWS SES endpoints
