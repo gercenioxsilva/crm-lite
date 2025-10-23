@@ -168,6 +168,23 @@ resource "aws_lb_listener_rule" "backoffice" {
   }
 }
 
+# Rule for backoffice static assets
+resource "aws_lb_listener_rule" "backoffice_assets" {
+  listener_arn = aws_lb_listener.main.arn
+  priority     = 150
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backoffice.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/assets/*", "*.js", "*.css", "*.tsx", "*.ts"]
+    }
+  }
+}
+
 # Service Discovery
 resource "aws_service_discovery_private_dns_namespace" "main" {
   name        = "crm.local"
