@@ -32,7 +32,7 @@ function App() {
         <CssBaseline />
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <Router basename="/crm">
+            <Router>
               <Routes>
                 <Route path="/login" element={<SimpleLogin />} />
                 <Route path="/" element={
