@@ -2,13 +2,15 @@ import { Pool } from 'pg';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-const pool = new Pool({
-  host: process.env.POSTGRES_HOST || 'db',
-  port: parseInt(process.env.POSTGRES_PORT || '5432'),
-  database: process.env.POSTGRES_DB || 'quiz',
-  user: process.env.POSTGRES_USER || 'quiz',
-  password: process.env.POSTGRES_PASSWORD || 'quiz',
-});
+const pool = process.env.DATABASE_URL 
+  ? new Pool({ connectionString: process.env.DATABASE_URL })
+  : new Pool({
+      host: process.env.POSTGRES_HOST || 'db',
+      port: parseInt(process.env.POSTGRES_PORT || '5432'),
+      database: process.env.POSTGRES_DB || 'quiz',
+      user: process.env.POSTGRES_USER || 'quiz',
+      password: process.env.POSTGRES_PASSWORD || 'quiz',
+    });
 
 async function waitForDatabase(maxRetries = 30, delay = 2000) {
   for (let i = 0; i < maxRetries; i++) {

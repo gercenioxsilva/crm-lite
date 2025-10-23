@@ -1,16 +1,24 @@
 import { FastifyInstance } from 'fastify';
 import { Pool } from 'pg';
 
-const pool = new Pool({
-  host: process.env.POSTGRES_HOST || 'db',
-  port: parseInt(process.env.POSTGRES_PORT || '5432'),
-  database: process.env.POSTGRES_DB || 'quiz',
-  user: process.env.POSTGRES_USER || 'quiz',
-  password: process.env.POSTGRES_PASSWORD || 'quiz',
-  connectionTimeoutMillis: 5000,
-  idleTimeoutMillis: 30000,
-  max: 20
-});
+// Use DATABASE_URL if available, otherwise use individual env vars
+const pool = process.env.DATABASE_URL 
+  ? new Pool({
+      connectionString: process.env.DATABASE_URL,
+      connectionTimeoutMillis: 5000,
+      idleTimeoutMillis: 30000,
+      max: 20
+    })
+  : new Pool({
+      host: process.env.POSTGRES_HOST || 'db',
+      port: parseInt(process.env.POSTGRES_PORT || '5432'),
+      database: process.env.POSTGRES_DB || 'quiz',
+      user: process.env.POSTGRES_USER || 'quiz',
+      password: process.env.POSTGRES_PASSWORD || 'quiz',
+      connectionTimeoutMillis: 5000,
+      idleTimeoutMillis: 30000,
+      max: 20
+    });
 
 export async function registerRoutes(app: FastifyInstance) {
   app.get('/health', async () => {
