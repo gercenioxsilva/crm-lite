@@ -163,24 +163,7 @@ resource "aws_lb_listener_rule" "backoffice" {
 
   condition {
     path_pattern {
-      values = ["/backoffice", "/backoffice/*"]
-    }
-  }
-}
-
-# Rule for backoffice static assets
-resource "aws_lb_listener_rule" "backoffice_assets" {
-  listener_arn = aws_lb_listener.main.arn
-  priority     = 150
-
-  action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.backoffice.arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/assets/*", "*.js", "*.css", "*.tsx", "*.ts"]
+      values = ["/backoffice", "/backoffice/*", "/assets/*"]
     }
   }
 }
