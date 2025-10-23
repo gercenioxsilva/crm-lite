@@ -43,6 +43,8 @@
 9. **IAM roles faltando** → Criados ecsTaskExecutionRole e ecsTaskRole
 10. **Conexão banco falhou** → Corrigido DATABASE_URL no serviço leads
 11. **Apenas landing funcionando** → Corrigido ALB routing e service discovery
+12. **Landing page erro conexão** → Configurado URLs relativas para produção AWS
+13. **Backoffice erro conexão** → Aplicadas mesmas correções de URL para AWS
 
 ### Workflow GitHub Actions
 ```yaml
@@ -133,10 +135,11 @@ git push origin main   # Trigger deploy automático
 
 ### Produção (AWS)
 - ✅ **FUNCIONANDO**: URLs disponíveis via ALB DNS
-- **Landing**: `http://[ALB-DNS]/`
-- **API Gateway**: `http://[ALB-DNS]/api/health`
-- **CRM Dashboard**: `http://[ALB-DNS]/crm/`
-- **API Docs**: `http://[ALB-DNS]/api/docs`
+- **Landing**: `http://[ALB-DNS]/` (✅ Formulário funcionando)
+- **API Gateway**: `http://[ALB-DNS]/api/health` (✅ Health check OK)
+- **CRM Dashboard**: `http://[ALB-DNS]/crm/` (✅ Dashboard carregando dados)
+- **API Docs**: `http://[ALB-DNS]/api/docs` (✅ Documentação acessível)
+- **API Pública**: `http://[ALB-DNS]/api/public/leads` (✅ Criação de leads)
 
 ## 📊 Próximos Passos
 
@@ -154,6 +157,9 @@ git push origin main   # Trigger deploy automático
 - API webhooks
 - Relatórios automatizados
 - Multi-tenancy
+- Domínio personalizado e SSL
+- Monitoramento avançado (CloudWatch)
+- Backup automatizado
 
 ## 🐛 Problemas Conhecidos
 
@@ -167,6 +173,10 @@ git push origin main   # Trigger deploy automático
 - ✅ Database connection issues
 - ✅ ALB routing configuration
 - ✅ Service discovery for all services
+- ✅ Frontend API connection issues
+- ✅ Production environment configuration
+- ✅ Landing page form submission
+- ✅ Backoffice dashboard data loading
 
 ### Em Monitoramento
 - 🔍 Performance do banco SQLite
@@ -176,14 +186,14 @@ git push origin main   # Trigger deploy automático
 ## 📝 Commits Recentes
 
 ```
+bfb8389 - fix: resolve backoffice API connection for AWS environment
+a3ca0f3 - fix: resolve landing page API connection in AWS environment
+588b918 - docs: update context history with successful AWS deployment
 3da4866 - fix: correct ALB routing and service discovery configuration
 26f0056 - fix: correct database connection to use DATABASE_URL
 f99981f - fix: add IAM roles for ECS Fargate task definitions
 4d0d9d1 - fix: remove duplicate terraform files causing resource conflicts
 89a3977 - fix: add terraform cache cleanup to deployment workflow
-226045e - fix: remove argumentos inválidos dos recursos aws_service_discovery_service
-7201c3c - fix: cria bucket S3 automaticamente para Terraform state
-279c694 - fix: corrige região do backend S3 do Terraform para eu-central-1
 ```
 
 ## 🔗 Documentação Relacionada
@@ -196,4 +206,12 @@ f99981f - fix: add IAM roles for ECS Fargate task definitions
 
 ---
 
-**Última atualização**: Deploy AWS CONCLUÍDO com sucesso! Sistema CRM completo rodando no ECS Fargate com ALB, RDS PostgreSQL, DocumentDB e todos os microserviços funcionais. Próximo passo: configurar domínio personalizado e SSL.
+**Última atualização**: Deploy AWS TOTALMENTE FUNCIONAL! Sistema CRM completo rodando no ECS Fargate com:
+- ✅ Todos os 7 microserviços operacionais
+- ✅ Landing page capturando leads corretamente
+- ✅ Dashboard CRM carregando dados em tempo real
+- ✅ API Gateway roteando todas as requisições
+- ✅ Banco PostgreSQL conectado e funcional
+- ✅ ALB distribuindo tráfego corretamente
+
+Sistema 100% operacional e pronto para uso em produção!
