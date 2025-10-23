@@ -68,9 +68,11 @@ export function RealTimeDashboard() {
         'Content-Type': 'application/json'
       }
 
+      const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3000')
+      
       // Fetch stats with fallback
       try {
-        const statsRes = await fetch('http://localhost:3000/backoffice/stats', { headers })
+        const statsRes = await fetch(`${apiUrl}/backoffice/stats`, { headers })
         if (statsRes.ok) {
           const statsData = await statsRes.json()
           setStats(statsData)
@@ -82,7 +84,7 @@ export function RealTimeDashboard() {
 
       // Fetch leads with fallback
       try {
-        const leadsRes = await fetch('http://localhost:3000/backoffice/leads', { headers })
+        const leadsRes = await fetch(`${apiUrl}/backoffice/leads`, { headers })
         if (leadsRes.ok) {
           const leadsData = await leadsRes.json()
           setLeads(Array.isArray(leadsData) ? leadsData : [])
@@ -94,7 +96,7 @@ export function RealTimeDashboard() {
 
       // Fetch chart data with fallback
       try {
-        const chartRes = await fetch('http://localhost:3000/backoffice/chart', { headers })
+        const chartRes = await fetch(`${apiUrl}/backoffice/chart`, { headers })
         if (chartRes.ok) {
           const chartData = await chartRes.json()
           setChartData(Array.isArray(chartData) ? chartData : [])
@@ -115,7 +117,8 @@ export function RealTimeDashboard() {
   const handleCreateLead = async () => {
     try {
       const token = localStorage.getItem('auth_token')
-      const response = await fetch('http://localhost:3000/backoffice/leads', {
+      const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3000')
+      const response = await fetch(`${apiUrl}/backoffice/leads`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

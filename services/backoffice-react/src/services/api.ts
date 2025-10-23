@@ -1,4 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+import { getApiUrl, getAuthUrl } from '../utils/config'
+
+const API_BASE_URL = getApiUrl()
 
 class ApiService {
   private getAuthHeaders() {
@@ -35,7 +37,7 @@ class ApiService {
   
   private async ensureRealToken() {
     try {
-      const authResponse = await fetch('http://localhost:3050/oauth/token', {
+      const authResponse = await fetch(`${getAuthUrl()}/oauth/token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
