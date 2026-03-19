@@ -1,0 +1,32 @@
+﻿services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tupi}
+      POSTGRES_USER: ${POSTGRES_USER:-tupi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tupi}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  api:
+    build: .
+    environment:
+      - PORT=8080
+      - DATABASE_URL=postgres://${POSTGRES_USER:-tupi}:${POSTGRES_PASSWORD:-tupi}@db:5432/${POSTGRES_DB:-tupi}?sslmode=disable
+      - READ_DATABASE_URL=
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pg_data:

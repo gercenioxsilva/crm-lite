@@ -1,0 +1,7 @@
+﻿POST /transactions
+{
+  "id": "tx_123",
+  "account_id": "acc_1",
+  "amount": 1000,
+  "currency": "BRL"
+}
