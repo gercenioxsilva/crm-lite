@@ -1,9 +1,11 @@
 ﻿package domain
 
+import "context"
+
 type CommandRepository interface {
-	Create(Transaction) error
+	Create(ctx context.Context, t Transaction) error
 }
 
 type QueryRepository interface {
-	FindByID(TransactionID) (Transaction, error)
+	FindByID(ctx context.Context, id TransactionID) (Transaction, error)
 }
