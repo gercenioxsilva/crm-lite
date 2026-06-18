@@ -464,7 +464,7 @@ Antes de considerar pronto para AWS:
 - Lambda Function URL CORS: usar `allow_methods = ["*"]`; `OPTIONS` excede a validacao da API de Function URL.
 - Lambda env vars: nao configurar `AWS_REGION`; ela e reservada pelo runtime Lambda.
 - Lambda consumindo SQS: `visibility_timeout_seconds` da fila deve ser maior ou igual ao `timeout` da Lambda. Para `email`, a Lambda usa 60s e a fila `crm-email-queue-prod` usa 120s.
-- Lambda `ResourceConflictException` (409) no deploy: adicionar `publish = true` nas tres Lambdas e `retry_mode = "adaptive"` / `max_retries = 10` no provider AWS do Terraform. Corrigido em `terraform/lambda.tf` e `terraform/main.tf`.
+- Lambda `ResourceConflictException` (409) no deploy: alem de `publish = true` nas tres Lambdas e `retry_mode = "adaptive"` / `max_retries = 10` no provider AWS do Terraform, o workflow usa `concurrency` e executa `scripts/wait-lambda-updates.sh` antes do `terraform plan/apply`. Isso evita iniciar update enquanto `crm-auth-prod`, `crm-email-prod` ou `crm-whatsapp-prod` ainda estao com `LastUpdateStatus=InProgress`.
 - ECS deploy: nao use apenas `aws ecs wait services-stable` sem diagnostico. O workflow usa `scripts/wait-ecs-services.sh` com timeout maior, eventos do servico e detalhes de tasks paradas.
 - ECS Service Discovery DNS lag: o DNS do Cloud Map (`crm-leads-prod.crm.local`) e registrado de forma assincrona apos o ECS declarar o servico como stable; pode demorar ate 60s. O `validate-demo-mvp.sh` retenta criacao e listagem com ate 6 tentativas para absorver esse lag.
 - Migracoes: o workflow usa `scripts/run-leads-migrations-task.sh`, aguarda a task Fargate terminar com polling proprio e falha se o container `leads` retornar exit code diferente de `0`. Nao use `aws ecs wait tasks-stopped` diretamente aqui; o waiter padrao pode expirar antes de um RDS recem-criado ficar pronto.
@@ -603,6 +603,7 @@ O provider AWS deve ter:
   max_retries = 10
 Nunca configure AWS_REGION como variavel de ambiente na Lambda; e reservada pelo runtime.
 visibility_timeout_seconds da fila SQS deve ser >= timeout da Lambda que a consome.
+Antes de terraform plan/apply, rode scripts/wait-lambda-updates.sh para evitar updates concorrentes em Lambdas ainda em InProgress.
 
 --- SKILL: Validacao de Deploy ECS ---
 O DNS do Cloud Map (crm-leads-prod.crm.local) e registrado assincronamente apos o ECS
