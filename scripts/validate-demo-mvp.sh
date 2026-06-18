@@ -48,18 +48,37 @@ fi
 
 echo "Validating backoffice lead listing with mock demo token"
 
-list_status=$(curl -sS -o /tmp/crm-demo-leads-list.json -w "%{http_code}" \
-  "${base_url}/api/backoffice/leads" \
-  -H "Authorization: Bearer mock-admin-token")
+max_list_attempts=6
+list_interval=5
+lead_found=false
 
-if [ "$list_status" != "200" ]; then
-  echo "Backoffice lead list failed with HTTP ${list_status}"
-  cat /tmp/crm-demo-leads-list.json
-  exit 1
-fi
+for attempt in $(seq 1 $max_list_attempts); do
+  list_status=$(curl -sS -o /tmp/crm-demo-leads-list.json -w "%{http_code}" \
+    "${base_url}/api/backoffice/leads" \
+    -H "Authorization: Bearer mock-admin-token")
 
-if ! grep -q "$lead_email" /tmp/crm-demo-leads-list.json; then
-  echo "Created lead ${lead_email} was not found in backoffice list"
+  if [ "$list_status" != "200" ]; then
+    echo "Attempt ${attempt}/${max_list_attempts}: backoffice list returned HTTP ${list_status}"
+    cat /tmp/crm-demo-leads-list.json
+    if [ "$attempt" -lt "$max_list_attempts" ]; then
+      sleep $list_interval
+      continue
+    fi
+    echo "Backoffice lead list failed after ${max_list_attempts} attempts"
+    exit 1
+  fi
+
+  if grep -q "$lead_email" /tmp/crm-demo-leads-list.json; then
+    lead_found=true
+    break
+  fi
+
+  echo "Attempt ${attempt}/${max_list_attempts}: lead ${lead_email} not yet visible, retrying in ${list_interval}s..."
+  sleep $list_interval
+done
+
+if [ "$lead_found" != "true" ]; then
+  echo "Created lead ${lead_email} was not found in backoffice list after ${max_list_attempts} attempts"
   cat /tmp/crm-demo-leads-list.json
   exit 1
 fi
