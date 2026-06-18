@@ -166,7 +166,10 @@ resource "aws_ecs_task_definition" "leads" {
         { name = "PORT", value = "3020" },
         { name = "DEFAULT_TENANT_ID", value = "00000000-0000-0000-0000-000000000001" },
         { name = "DATABASE_URL", value = "postgres://${aws_db_instance.postgres.username}:${aws_db_instance.postgres.password}@${aws_db_instance.postgres.endpoint}/${aws_db_instance.postgres.db_name}" },
-        { name = "PGSSLMODE", value = "require" }
+        { name = "PGSSLMODE", value = "require" },
+        { name = "DB_CONNECT_TIMEOUT_MS", value = "10000" },
+        { name = "DB_CONNECT_MAX_RETRIES", value = "60" },
+        { name = "DB_CONNECT_RETRY_DELAY_MS", value = "5000" }
       ]
 
       healthCheck = {
