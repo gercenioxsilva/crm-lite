@@ -335,6 +335,12 @@ bash scripts/package-lambda-services.sh
 
 O Terraform espera os pacotes em `.aws/lambda/auth.zip`, `.aws/lambda/email.zip` e `.aws/lambda/whatsapp.zip`. Os workflows fazem esse empacotamento automaticamente antes do `terraform plan`.
 
+Limpeza automatica de ALB legado:
+
+- Os frontends antigos em ECS usavam target groups `land-*`/`back-*`.
+- Como os frontends agora estao em S3 + CloudFront, o workflow executa `scripts/cleanup-legacy-alb-target-groups.sh` antes do `terraform plan`.
+- Esse script remove regras antigas do listener que ainda apontem para target groups legados e evita erro `ResourceInUse: Target group is currently in use by a listener or a rule`.
+
 ## Checklist De Publicacao
 
 Antes de considerar pronto para AWS:
@@ -358,6 +364,8 @@ Antes de considerar pronto para AWS:
 - Assets React 404: nao usar `base` no Vite se Nginx/ALB servem a aplicacao na raiz do target.
 - Testes importando `application/use-cases` inexistente em `leads`: os testes devem exercitar as rotas HTTP reais.
 - Dockerfile com `npm install --omit=dev` antes do build TypeScript: instalar dependencias completas, buildar e depois usar `npm prune --omit=dev`.
+- Lambda Function URL CORS: usar `allow_methods = ["*"]`; `OPTIONS` excede a validacao da API de Function URL.
+- Lambda env vars: nao configurar `AWS_REGION`; ela e reservada pelo runtime Lambda.
 
 ## Regras De Manutencao
 
