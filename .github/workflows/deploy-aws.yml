@@ -131,8 +131,6 @@ jobs:
 
     - name: Deploy static frontends
       working-directory: ./terraform
-      env:
-        VITE_API_URL: /api
       run: |
         LANDING_BUCKET=$(terraform output -raw landing_bucket_name)
         BACKOFFICE_BUCKET=$(terraform output -raw backoffice_bucket_name)
@@ -140,6 +138,11 @@ jobs:
         BACKOFFICE_DISTRIBUTION_ID=$(terraform output -raw backoffice_cloudfront_distribution_id)
         LANDING_DOMAIN=$(terraform output -raw landing_cloudfront_domain_name)
         BACKOFFICE_DOMAIN=$(terraform output -raw backoffice_cloudfront_domain_name)
+        API_URL="/api"
+
+        echo "Building static frontends with API URL: $API_URL"
+        export VITE_API_URL="$API_URL"
+        export VITE_AUTH_URL="$API_URL"
 
         cd ..
 

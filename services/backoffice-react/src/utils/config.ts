@@ -1,5 +1,7 @@
+const defaultApiUrl = import.meta.env.PROD ? '/api' : 'http://localhost:3000/api'
+
 export const getApiUrl = () => {
-  return import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+  return import.meta.env.VITE_API_URL || defaultApiUrl
 }
 
 export const getAuthUrl = () => {

@@ -7,6 +7,7 @@ import {
 } from '@mui/material'
 import { MoreVert, Search, Add, Business, Person, AttachMoney, Phone, Email } from '@mui/icons-material'
 import { WhatsAppIntegration } from './WhatsAppIntegration'
+import { apiService } from '../services/api'
 
 interface Lead {
   id: string
@@ -73,19 +74,7 @@ export function SimpleLeadsList() {
       setLoading(true)
       setError(null)
       
-      const token = localStorage.getItem('auth_token') || 'mock-admin-token'
-      const response = await fetch('http://localhost:3000/backoffice/leads', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
-      }
-
-      const data = await response.json()
+      const data = await apiService.getLeads()
       setLeads(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Error fetching leads:', err)
@@ -141,19 +130,11 @@ export function SimpleLeadsList() {
   const handleQualifyLead = async () => {
     if (selectedLead && qualification.priority && qualification.temperature) {
       try {
-        const token = localStorage.getItem('auth_token') || 'mock-admin-token'
-        await fetch(`http://localhost:3000/backoffice/leads/${selectedLead.id}`, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            priority: qualification.priority,
-            temperature: qualification.temperature,
-            lead_value: qualification.lead_value ? Number(qualification.lead_value) : undefined,
-            notes: qualification.notes
-          })
+        await apiService.updateLead(selectedLead.id, {
+          priority: qualification.priority,
+          temperature: qualification.temperature,
+          lead_value: qualification.lead_value ? Number(qualification.lead_value) : undefined,
+          notes: qualification.notes
         })
         
         setQualifyDialog(false)
