@@ -19,10 +19,16 @@ lead_email="demo-${GITHUB_RUN_ID:-local}-$(date +%s)@example.com"
 
 echo "Validating public lead creation through ${base_url}/api/public/leads"
 
-create_status=$(curl -sS -o /tmp/crm-demo-lead-create.json -w "%{http_code}" \
-  -X POST "${base_url}/api/public/leads" \
-  -H "Content-Type: application/json" \
-  --data-binary @- <<JSON
+# Retenta ate 6x (60s) para tolerar lag de DNS do ECS Service Discovery
+max_create_attempts=6
+create_interval=10
+lead_created=false
+
+for attempt in $(seq 1 $max_create_attempts); do
+  create_status=$(curl -sS -o /tmp/crm-demo-lead-create.json -w "%{http_code}" \
+    -X POST "${base_url}/api/public/leads" \
+    -H "Content-Type: application/json" \
+    --data-binary @- <<JSON
 {
   "name": "Demo MVP Cliente",
   "email": "${lead_email}",
@@ -34,14 +40,18 @@ create_status=$(curl -sS -o /tmp/crm-demo-lead-create.json -w "%{http_code}" \
 JSON
 )
 
-if [ "$create_status" != "200" ] && [ "$create_status" != "201" ]; then
-  echo "Lead creation failed with HTTP ${create_status}"
-  cat /tmp/crm-demo-lead-create.json
-  exit 1
-fi
+  if { [ "$create_status" = "200" ] || [ "$create_status" = "201" ]; } && grep -q '"success":true' /tmp/crm-demo-lead-create.json; then
+    lead_created=true
+    break
+  fi
 
-if ! grep -q '"success":true' /tmp/crm-demo-lead-create.json; then
-  echo "Lead creation response did not confirm success"
+  echo "Attempt ${attempt}/${max_create_attempts}: lead creation returned HTTP ${create_status}, retrying in ${create_interval}s..."
+  cat /tmp/crm-demo-lead-create.json
+  sleep $create_interval
+done
+
+if [ "$lead_created" != "true" ]; then
+  echo "Lead creation failed after ${max_create_attempts} attempts (HTTP ${create_status})"
   cat /tmp/crm-demo-lead-create.json
   exit 1
 fi
