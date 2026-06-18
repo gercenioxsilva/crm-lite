@@ -394,6 +394,7 @@ Antes de considerar pronto para AWS:
 - Dockerfile com `npm install --omit=dev` antes do build TypeScript: instalar dependencias completas, buildar e depois usar `npm prune --omit=dev`.
 - Lambda Function URL CORS: usar `allow_methods = ["*"]`; `OPTIONS` excede a validacao da API de Function URL.
 - Lambda env vars: nao configurar `AWS_REGION`; ela e reservada pelo runtime Lambda.
+- Lambda consumindo SQS: `visibility_timeout_seconds` da fila deve ser maior ou igual ao `timeout` da Lambda. Para `email`, a Lambda usa 60s e a fila `crm-email-queue-prod` usa 120s.
 
 ## Regras De Manutencao
 
