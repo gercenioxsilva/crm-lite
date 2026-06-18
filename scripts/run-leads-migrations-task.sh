@@ -5,6 +5,9 @@ ENVIRONMENT="${ENVIRONMENT:-prod}"
 ECS_CLUSTER="${ECS_CLUSTER:-crm-cluster}"
 MIGRATIONS_REQUIRED="${MIGRATIONS_REQUIRED:-true}"
 MIGRATION_ASSIGN_PUBLIC_IP="${MIGRATION_ASSIGN_PUBLIC_IP:-ENABLED}"
+MIGRATION_WAIT_TIMEOUT_SECONDS="${MIGRATION_WAIT_TIMEOUT_SECONDS:-2400}"
+MIGRATION_WAIT_INTERVAL_SECONDS="${MIGRATION_WAIT_INTERVAL_SECONDS:-15}"
+MIGRATION_LOG_INTERVAL_SECONDS="${MIGRATION_LOG_INTERVAL_SECONDS:-60}"
 
 cluster_name="${ECS_CLUSTER}-${ENVIRONMENT}"
 
@@ -77,21 +80,6 @@ if [ -z "$task_arn" ] || [ "$task_arn" = "None" ]; then
   exit 1
 fi
 
-echo "Waiting for migration task ${task_arn} to stop..."
-aws ecs wait tasks-stopped --cluster "$cluster_name" --tasks "$task_arn"
-
-exit_code=$(aws ecs describe-tasks \
-  --cluster "$cluster_name" \
-  --tasks "$task_arn" \
-  --query "tasks[0].containers[?name=='migrate'].exitCode | [0]" \
-  --output text)
-
-stopped_reason=$(aws ecs describe-tasks \
-  --cluster "$cluster_name" \
-  --tasks "$task_arn" \
-  --query 'tasks[0].stoppedReason' \
-  --output text)
-
 # awslogs stream name format is usually {prefix}/{container}/{task-id}, but
 # deployments have shown that assuming the stream name can hide the real error.
 task_id=$(echo "$task_arn" | awk -F'/' '{print $NF}')
@@ -126,6 +114,66 @@ print_migration_logs() {
     --output text 2>/dev/null || echo "(no log stream found - container may have failed before writing output)"
   echo "::endgroup::"
 }
+
+echo "Waiting up to ${MIGRATION_WAIT_TIMEOUT_SECONDS}s for migration task ${task_arn} to stop..."
+start_epoch=$(date +%s)
+last_log_epoch=0
+
+while true; do
+  task_status_json=$(aws ecs describe-tasks --cluster "$cluster_name" --tasks "$task_arn")
+  last_status=$(echo "$task_status_json" | jq -r '.tasks[0].lastStatus // "UNKNOWN"')
+  desired_status=$(echo "$task_status_json" | jq -r '.tasks[0].desiredStatus // "UNKNOWN"')
+  now_epoch=$(date +%s)
+  elapsed=$((now_epoch - start_epoch))
+
+  echo "Migration task status: lastStatus=${last_status}, desiredStatus=${desired_status}, elapsed=${elapsed}s"
+
+  if [ "$last_status" = "STOPPED" ]; then
+    break
+  fi
+
+  if [ "$elapsed" -ge "$MIGRATION_WAIT_TIMEOUT_SECONDS" ]; then
+    echo "Migration task did not stop within ${MIGRATION_WAIT_TIMEOUT_SECONDS}s."
+    aws ecs describe-tasks \
+      --cluster "$cluster_name" \
+      --tasks "$task_arn" \
+      --query 'tasks[0].{lastStatus:lastStatus,desiredStatus:desiredStatus,stoppedReason:stoppedReason,containers:containers[].{name:name,lastStatus:lastStatus,exitCode:exitCode,reason:reason}}' \
+      --output json
+
+    print_migration_logs
+
+    aws ecs stop-task \
+      --cluster "$cluster_name" \
+      --task "$task_arn" \
+      --reason "Migration wait timed out after ${MIGRATION_WAIT_TIMEOUT_SECONDS}s" >/dev/null || true
+
+    if [ "$MIGRATIONS_REQUIRED" = "true" ]; then
+      exit 1
+    fi
+
+    echo "Migration timeout is non-blocking because MIGRATIONS_REQUIRED=false. Demo MVP validation will verify the real application flow."
+    exit 0
+  fi
+
+  if [ $((now_epoch - last_log_epoch)) -ge "$MIGRATION_LOG_INTERVAL_SECONDS" ]; then
+    print_migration_logs
+    last_log_epoch=$now_epoch
+  fi
+
+  sleep "$MIGRATION_WAIT_INTERVAL_SECONDS"
+done
+
+exit_code=$(aws ecs describe-tasks \
+  --cluster "$cluster_name" \
+  --tasks "$task_arn" \
+  --query "tasks[0].containers[?name=='migrate'].exitCode | [0]" \
+  --output text)
+
+stopped_reason=$(aws ecs describe-tasks \
+  --cluster "$cluster_name" \
+  --tasks "$task_arn" \
+  --query 'tasks[0].stoppedReason' \
+  --output text)
 
 if [ "$exit_code" != "0" ]; then
   echo "Migration task failed with exit code ${exit_code}. Reason: ${stopped_reason}"
