@@ -8,9 +8,9 @@ resource "aws_security_group" "internal_services" {
 
   # Permite comunicação interna apenas
   ingress {
-    from_port = 0
-    to_port   = 65535
-    protocol  = "tcp"
+    from_port   = 0
+    to_port     = 65535
+    protocol    = "tcp"
     cidr_blocks = [aws_vpc.main.cidr_block]
   }
 
@@ -53,9 +53,9 @@ resource "aws_security_group" "external_api_services" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    from_port = 0
-    to_port   = 65535
-    protocol  = "tcp"
+    from_port   = 0
+    to_port     = 65535
+    protocol    = "tcp"
     cidr_blocks = [aws_vpc.main.cidr_block]
   }
 
@@ -94,36 +94,36 @@ resource "aws_security_group" "external_api_services" {
 
 # VPC Endpoints para AWS Services (elimina necessidade de internet)
 resource "aws_vpc_endpoint" "ecr_dkr" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${var.aws_region}.ecr.dkr"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  
+  vpc_id             = aws_vpc.main.id
+  service_name       = "com.amazonaws.${var.aws_region}.ecr.dkr"
+  vpc_endpoint_type  = "Interface"
+  subnet_ids         = aws_subnet.private[*].id
+  security_group_ids = [aws_security_group.vpc_endpoints.id]
+
   tags = {
     Name = "crm-ecr-dkr-endpoint-${var.environment}"
   }
 }
 
 resource "aws_vpc_endpoint" "ecr_api" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${var.aws_region}.ecr.api"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  
+  vpc_id             = aws_vpc.main.id
+  service_name       = "com.amazonaws.${var.aws_region}.ecr.api"
+  vpc_endpoint_type  = "Interface"
+  subnet_ids         = aws_subnet.private[*].id
+  security_group_ids = [aws_security_group.vpc_endpoints.id]
+
   tags = {
     Name = "crm-ecr-api-endpoint-${var.environment}"
   }
 }
 
 resource "aws_vpc_endpoint" "logs" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${var.aws_region}.logs"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  
+  vpc_id             = aws_vpc.main.id
+  service_name       = "com.amazonaws.${var.aws_region}.logs"
+  vpc_endpoint_type  = "Interface"
+  subnet_ids         = aws_subnet.private[*].id
+  security_group_ids = [aws_security_group.vpc_endpoints.id]
+
   tags = {
     Name = "crm-logs-endpoint-${var.environment}"
   }
@@ -134,7 +134,7 @@ resource "aws_vpc_endpoint" "s3" {
   service_name      = "com.amazonaws.${var.aws_region}.s3"
   vpc_endpoint_type = "Gateway"
   route_table_ids   = [aws_route_table.private.id]
-  
+
   tags = {
     Name = "crm-s3-endpoint-${var.environment}"
   }

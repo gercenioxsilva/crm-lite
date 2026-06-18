@@ -49,7 +49,7 @@ resource "aws_lb" "main" {
 
 # Target Groups
 resource "aws_lb_target_group" "api_gateway" {
-  name        = "crm-api-gateway-${var.environment}"
+  name_prefix = "api-"
   port        = 3000
   protocol    = "HTTP"
   vpc_id      = aws_vpc.main.id
@@ -74,7 +74,7 @@ resource "aws_lb_target_group" "api_gateway" {
 }
 
 resource "aws_lb_target_group" "landing" {
-  name        = "crm-landing-${var.environment}"
+  name_prefix = "land-"
   port        = 80
   protocol    = "HTTP"
   vpc_id      = aws_vpc.main.id
@@ -99,7 +99,7 @@ resource "aws_lb_target_group" "landing" {
 }
 
 resource "aws_lb_target_group" "backoffice" {
-  name        = "crm-backoffice-${var.environment}"
+  name_prefix = "back-"
   port        = 80
   protocol    = "HTTP"
   vpc_id      = aws_vpc.main.id
