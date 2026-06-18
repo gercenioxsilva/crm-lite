@@ -97,3 +97,18 @@ output "backoffice_cloudfront_domain_name" {
   description = "CloudFront domain name for backoffice"
   value       = aws_cloudfront_distribution.static_site["backoffice"].domain_name
 }
+
+output "auth_lambda_function_url" {
+  description = "Function URL for the auth Lambda"
+  value       = aws_lambda_function_url.auth.function_url
+}
+
+output "email_lambda_function_url" {
+  description = "Function URL for the email Lambda"
+  value       = aws_lambda_function_url.email.function_url
+}
+
+output "whatsapp_lambda_function_url" {
+  description = "Function URL for the WhatsApp Lambda"
+  value       = aws_lambda_function_url.whatsapp.function_url
+}

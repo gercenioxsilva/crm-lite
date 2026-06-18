@@ -114,26 +114,6 @@ resource "aws_service_discovery_private_dns_namespace" "main" {
   }
 }
 
-resource "aws_service_discovery_service" "auth" {
-  name = "crm-auth-${var.environment}"
-
-  dns_config {
-    namespace_id = aws_service_discovery_private_dns_namespace.main.id
-
-    dns_records {
-      ttl  = 10
-      type = "A"
-    }
-
-    routing_policy = "MULTIVALUE"
-  }
-
-  tags = {
-    Name        = "crm-auth-service-${var.environment}"
-    Environment = var.environment
-  }
-}
-
 resource "aws_service_discovery_service" "leads" {
   name = "crm-leads-${var.environment}"
 
@@ -150,46 +130,6 @@ resource "aws_service_discovery_service" "leads" {
 
   tags = {
     Name        = "crm-leads-service-${var.environment}"
-    Environment = var.environment
-  }
-}
-
-resource "aws_service_discovery_service" "email" {
-  name = "crm-email-${var.environment}"
-
-  dns_config {
-    namespace_id = aws_service_discovery_private_dns_namespace.main.id
-
-    dns_records {
-      ttl  = 10
-      type = "A"
-    }
-
-    routing_policy = "MULTIVALUE"
-  }
-
-  tags = {
-    Name        = "crm-email-service-${var.environment}"
-    Environment = var.environment
-  }
-}
-
-resource "aws_service_discovery_service" "whatsapp" {
-  name = "crm-whatsapp-${var.environment}"
-
-  dns_config {
-    namespace_id = aws_service_discovery_private_dns_namespace.main.id
-
-    dns_records {
-      ttl  = 10
-      type = "A"
-    }
-
-    routing_policy = "MULTIVALUE"
-  }
-
-  tags = {
-    Name        = "crm-whatsapp-service-${var.environment}"
     Environment = var.environment
   }
 }
