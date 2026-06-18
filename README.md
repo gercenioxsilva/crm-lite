@@ -38,6 +38,7 @@ Limites assumidos nesta fase:
 - Nao ha billing, assinatura, trial, invoice ou cobranca automatica.
 - Nao ha painel de criacao de tenants; novos clientes devem ser criados por migracao/script operacional.
 - Nao ha Cognito nesta fase; a autenticacao continua simples para reduzir complexidade.
+- Para demo MVP, a landing publica cria leads sem login e o backoffice usa credencial demo com `mock-admin-token`.
 - O escopo multi-tenant inicial e isolamento logico no banco compartilhado.
 - Antes de vender para multiplos clientes simultaneos, revisar LGPD, auditoria, backup/restore por tenant, termos de uso, trilha de alteracoes e controles de suporte.
 
@@ -397,6 +398,7 @@ Antes de considerar pronto para AWS:
 - Lambda consumindo SQS: `visibility_timeout_seconds` da fila deve ser maior ou igual ao `timeout` da Lambda. Para `email`, a Lambda usa 60s e a fila `crm-email-queue-prod` usa 120s.
 - ECS deploy: nao use apenas `aws ecs wait services-stable` sem diagnostico. O workflow usa `scripts/wait-ecs-services.sh` com timeout maior, eventos do servico e detalhes de tasks paradas.
 - Migracoes: o workflow usa `scripts/run-leads-migrations-task.sh`, aguarda a task Fargate terminar e falha se o container `leads` retornar exit code diferente de `0`.
+- Banco existente sem historico: `services/leads/src/scripts/migrate.ts` cria `schema_migrations`, faz baseline das migrations legadas quando detecta schema CRM existente e executa apenas a migracao SaaS pendente.
 
 ## Regras De Manutencao
 

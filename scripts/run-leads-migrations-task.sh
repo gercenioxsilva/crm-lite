@@ -38,19 +38,26 @@ fi
 
 echo "Running migrations in ${cluster_name} with subnets ${private_subnets} and security group ${security_group}"
 
-task_arn=$(aws ecs run-task \
+run_task_response=$(aws ecs run-task \
   --cluster "$cluster_name" \
-  --task-definition "crm-leads-${ENVIRONMENT}" \
+  --task-definition "crm-migrate-${ENVIRONMENT}" \
   --launch-type FARGATE \
   --network-configuration "awsvpcConfiguration={subnets=[$private_subnets],securityGroups=[$security_group]}" \
   --overrides '{
     "containerOverrides": [{
-      "name": "leads",
+      "name": "migrate",
       "command": ["npm", "run", "migrate"]
     }]
-  }' \
-  --query 'tasks[0].taskArn' \
-  --output text)
+  }')
+
+failures=$(echo "$run_task_response" | jq -r '.failures // [] | length')
+if [ "$failures" != "0" ]; then
+  echo "Migration task failed to start:"
+  echo "$run_task_response" | jq '.failures'
+  exit 1
+fi
+
+task_arn=$(echo "$run_task_response" | jq -r '.tasks[0].taskArn // empty')
 
 if [ -z "$task_arn" ] || [ "$task_arn" = "None" ]; then
   echo "Migration task was not started."
@@ -63,13 +70,19 @@ aws ecs wait tasks-stopped --cluster "$cluster_name" --tasks "$task_arn"
 exit_code=$(aws ecs describe-tasks \
   --cluster "$cluster_name" \
   --tasks "$task_arn" \
-  --query "tasks[0].containers[?name=='leads'].exitCode | [0]" \
+  --query "tasks[0].containers[?name=='migrate'].exitCode | [0]" \
   --output text)
 
 stopped_reason=$(aws ecs describe-tasks \
   --cluster "$cluster_name" \
   --tasks "$task_arn" \
   --query 'tasks[0].stoppedReason' \
+  --output text)
+
+log_stream=$(aws ecs describe-tasks \
+  --cluster "$cluster_name" \
+  --tasks "$task_arn" \
+  --query "tasks[0].containers[?name=='migrate'].logStreamName | [0]" \
   --output text)
 
 if [ "$exit_code" != "0" ]; then
@@ -79,6 +92,18 @@ if [ "$exit_code" != "0" ]; then
     --tasks "$task_arn" \
     --query 'tasks[0].containers[].{name:name,exitCode:exitCode,reason:reason,logStreamName:logStreamName}' \
     --output json
+
+  if [ -n "$log_stream" ] && [ "$log_stream" != "None" ]; then
+    echo "::group::Migration task logs"
+    aws logs get-log-events \
+      --log-group-name "/ecs/crm-${ENVIRONMENT}" \
+      --log-stream-name "$log_stream" \
+      --limit 100 \
+      --query 'events[].message' \
+      --output text || true
+    echo "::endgroup::"
+  fi
+
   exit 1
 fi
 

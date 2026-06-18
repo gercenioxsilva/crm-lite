@@ -70,7 +70,7 @@ VALUES
     'user',
     'active'
   )
-ON CONFLICT (id) DO UPDATE
+ON CONFLICT (email) DO UPDATE
 SET tenant_id = EXCLUDED.tenant_id,
     email = EXCLUDED.email,
     name = EXCLUDED.name,
