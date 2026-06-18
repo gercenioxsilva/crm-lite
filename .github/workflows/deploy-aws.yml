@@ -127,7 +127,7 @@ jobs:
         bash ../scripts/terraform-import-existing.sh "$ENVIRONMENT"
         bash ../scripts/cleanup-legacy-alb-target-groups.sh "$ENVIRONMENT"
         terraform plan -var="environment=$ENVIRONMENT" -var="image_tag=$IMAGE_TAG"
-        terraform apply -auto-approve -var="environment=$ENVIRONMENT" -var="image_tag=$IMAGE_TAG"
+        terraform apply -auto-approve -parallelism=5 -var="environment=$ENVIRONMENT" -var="image_tag=$IMAGE_TAG"
 
     - name: Deploy static frontends
       working-directory: ./terraform

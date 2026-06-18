@@ -173,7 +173,8 @@ resource "aws_lambda_function" "email" {
     aws_cloudwatch_log_group.email,
     aws_iam_role_policy_attachment.lambda_basic_execution,
     aws_iam_role_policy_attachment.lambda_vpc_execution,
-    aws_iam_role_policy.lambda_app_policy
+    aws_iam_role_policy.lambda_app_policy,
+    aws_lambda_function.auth
   ]
 
   tags = {
@@ -235,7 +236,8 @@ resource "aws_lambda_function" "whatsapp" {
     aws_cloudwatch_log_group.whatsapp_lambda,
     aws_iam_role_policy_attachment.lambda_basic_execution,
     aws_iam_role_policy_attachment.lambda_vpc_execution,
-    aws_iam_role_policy.lambda_app_policy
+    aws_iam_role_policy.lambda_app_policy,
+    aws_lambda_function.email
   ]
 
   tags = {
