@@ -27,12 +27,29 @@ class ApiService {
       }
     })
 
+    const body = await response.text()
+    const contentType = response.headers.get('content-type') || ''
+
     if (!response.ok) {
-      console.error(`API Error: ${response.status} - ${url}`)
+      console.error(`API Error: ${response.status} - ${url}`, body)
       throw new Error(`HTTP ${response.status}`)
     }
 
-    return response.json()
+    if (!body) {
+      return null
+    }
+
+    if (!contentType.toLowerCase().includes('application/json')) {
+      const preview = body.trim().slice(0, 120)
+      throw new Error(`Resposta invalida da API: esperado JSON, recebido ${contentType || 'sem content-type'} em ${url}. Inicio: ${preview}`)
+    }
+
+    try {
+      return JSON.parse(body)
+    } catch {
+      console.error(`Invalid JSON response from ${url}`, body)
+      throw new Error(`Resposta JSON invalida da API em ${url}`)
+    }
   }
   
   private async ensureRealToken() {
@@ -55,7 +72,7 @@ class ApiService {
         localStorage.setItem('auth_token', access_token)
         console.log('Real token obtained successfully')
       }
-    } catch (error) {
+    } catch {
       console.warn('Failed to get real token, using mock')
     }
   }
@@ -89,7 +106,7 @@ class ApiService {
         method: 'PUT',
         body: JSON.stringify(leadData)
       })
-    } catch (error) {
+    } catch {
       console.warn('Failed to update lead, using mock response')
       return { id, ...leadData, updated_at: new Date().toISOString() }
     }

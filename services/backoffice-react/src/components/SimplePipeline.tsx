@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Box, Card, CardContent, Typography, Chip, CircularProgress, Alert, Snackbar } from '@mui/material'
 import { Business, Person, AttachMoney, DragIndicator } from '@mui/icons-material'
+import { apiService } from '../services/api'
 
 interface Lead {
   id: string
@@ -48,20 +49,8 @@ export function SimplePipeline() {
       setLoading(true)
       setError(null)
       
-      const token = localStorage.getItem('auth_token') || 'mock-admin-token'
-      const response = await fetch('http://localhost:3000/backoffice/pipeline', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setStages(data)
-      } else {
-        throw new Error(`API error: ${response.status}`)
-      }
+      const data = await apiService.getPipeline()
+      setStages(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Error fetching pipeline:', err)
       setError(err instanceof Error ? err.message : 'Unknown error')
@@ -73,25 +62,12 @@ export function SimplePipeline() {
   const moveLeadToStage = async (leadId: string, targetStageId: string) => {
     try {
       setMovingLead(leadId)
-      const token = localStorage.getItem('auth_token') || 'mock-admin-token'
-      const response = await fetch(`http://localhost:3000/backoffice/leads/${leadId}/move`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ stageId: targetStageId })
-      })
-
-      if (response.ok) {
-        setNotification({ open: true, message: 'Lead movido com sucesso! 🎉', type: 'success' })
-        await fetchPipeline() // Refresh pipeline
-      } else {
-        throw new Error('Falha ao mover lead')
-      }
+      await apiService.moveLead(leadId, targetStageId)
+      setNotification({ open: true, message: 'Lead movido com sucesso!', type: 'success' })
+      await fetchPipeline()
     } catch (err) {
       console.error('Error moving lead:', err)
-      setNotification({ open: true, message: 'Erro ao mover lead ❌', type: 'error' })
+      setNotification({ open: true, message: 'Erro ao mover lead', type: 'error' })
     } finally {
       setMovingLead(null)
     }

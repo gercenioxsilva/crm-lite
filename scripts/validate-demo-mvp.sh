@@ -64,4 +64,40 @@ if ! grep -q "$lead_email" /tmp/crm-demo-leads-list.json; then
   exit 1
 fi
 
+backoffice_domain=$(aws cloudfront list-distributions \
+  --query "DistributionList.Items[?Comment=='CRM Backoffice ${ENVIRONMENT}'] | [0].DomainName" \
+  --output text)
+
+if [ -z "$backoffice_domain" ] || [ "$backoffice_domain" = "None" ]; then
+  echo "Backoffice CloudFront distribution was not found for environment ${ENVIRONMENT}."
+  exit 1
+fi
+
+backoffice_api_url="https://${backoffice_domain}/api/backoffice/pipeline"
+echo "Validating backoffice CloudFront API routing through ${backoffice_api_url}"
+
+pipeline_status=$(curl -sS -o /tmp/crm-demo-backoffice-pipeline.json -w "%{http_code}" \
+  "$backoffice_api_url" \
+  -H "Authorization: Bearer mock-admin-token" \
+  -H "Accept: application/json")
+
+if [ "$pipeline_status" != "200" ]; then
+  echo "Backoffice CloudFront pipeline route failed with HTTP ${pipeline_status}"
+  cat /tmp/crm-demo-backoffice-pipeline.json
+  exit 1
+fi
+
+if grep -Eiq '<!doctype|<html|<Error>' /tmp/crm-demo-backoffice-pipeline.json; then
+  echo "Backoffice CloudFront /api route returned HTML/XML instead of JSON. Check the /api/* behavior."
+  cat /tmp/crm-demo-backoffice-pipeline.json
+  exit 1
+fi
+
+pipeline_first_char=$(tr -d '[:space:]' < /tmp/crm-demo-backoffice-pipeline.json | head -c 1)
+if [ "$pipeline_first_char" != "[" ] && [ "$pipeline_first_char" != "{" ]; then
+  echo "Backoffice CloudFront pipeline route did not return a JSON object or array."
+  cat /tmp/crm-demo-backoffice-pipeline.json
+  exit 1
+fi
+
 echo "Demo MVP validation passed. Lead ${lead_email} reached the database and backoffice."
