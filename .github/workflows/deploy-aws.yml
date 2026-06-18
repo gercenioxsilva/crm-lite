@@ -11,6 +11,10 @@ env:
   ECS_CLUSTER: crm-cluster
   ECS_SERVICE_PREFIX: crm
 
+concurrency:
+  group: crm-prod-deploy
+  cancel-in-progress: false
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -140,6 +144,7 @@ jobs:
         terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT
         bash ../scripts/terraform-import-existing.sh "$ENVIRONMENT"
         bash ../scripts/cleanup-legacy-alb-target-groups.sh "$ENVIRONMENT"
+        bash ../scripts/wait-lambda-updates.sh
         terraform plan -var="environment=$ENVIRONMENT" -var="image_tag=$IMAGE_TAG"
         terraform apply -auto-approve -parallelism=5 -var="environment=$ENVIRONMENT" -var="image_tag=$IMAGE_TAG"
 
