@@ -129,6 +129,11 @@ jobs:
         terraform plan -var="environment=$ENVIRONMENT" -var="image_tag=$IMAGE_TAG"
         terraform apply -auto-approve -parallelism=5 -var="environment=$ENVIRONMENT" -var="image_tag=$IMAGE_TAG"
 
+    - name: Run database migrations
+      env:
+        MIGRATIONS_REQUIRED: "true"
+      run: bash scripts/run-leads-migrations-task.sh
+
     - name: Deploy static frontends
       working-directory: ./terraform
       run: |
@@ -203,26 +208,24 @@ jobs:
 
     - name: Update ECS services
       run: |
-        # Only update services that exist in our current Terraform configuration
-        services=("api-gateway" "leads")
-        
-        for service in "${services[@]}"; do
-          if aws ecs describe-services --cluster $ECS_CLUSTER-$ENVIRONMENT --services $ECS_SERVICE_PREFIX-$service-$ENVIRONMENT >/dev/null 2>&1; then
-            echo "Updating service: $service"
-            aws ecs update-service \
-              --cluster $ECS_CLUSTER-$ENVIRONMENT \
-              --service $ECS_SERVICE_PREFIX-$service-$ENVIRONMENT \
-              --force-new-deployment
-          else
-            echo "Service $service not found, skipping update..."
-          fi
-        done
+        # api-gateway: Terraform already updated the task definition; force a new deploy cycle.
+        if aws ecs describe-services --cluster $ECS_CLUSTER-$ENVIRONMENT --services $ECS_SERVICE_PREFIX-api-gateway-$ENVIRONMENT --query 'services[0].status' --output text 2>/dev/null | grep -q ACTIVE; then
+          echo "Redeploying api-gateway..."
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER-$ENVIRONMENT \
+            --service $ECS_SERVICE_PREFIX-api-gateway-$ENVIRONMENT \
+            --force-new-deployment
+        fi
 
-    - name: Run database migrations
-      if: github.ref == 'refs/heads/main'
-      env:
-        MIGRATIONS_REQUIRED: "false"
-      run: bash scripts/run-leads-migrations-task.sh
+        # leads: Terraform updates the task definition revision only (lifecycle ignore_changes).
+        # Deploy the new revision explicitly here, AFTER migrations have succeeded.
+        if aws ecs describe-services --cluster $ECS_CLUSTER-$ENVIRONMENT --services $ECS_SERVICE_PREFIX-leads-$ENVIRONMENT --query 'services[0].status' --output text 2>/dev/null | grep -q ACTIVE; then
+          echo "Deploying leads with latest task definition..."
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER-$ENVIRONMENT \
+            --service $ECS_SERVICE_PREFIX-leads-$ENVIRONMENT \
+            --task-definition $ECS_SERVICE_PREFIX-leads-$ENVIRONMENT
+        fi
 
     - name: Wait for deployment
       env:
