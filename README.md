@@ -75,8 +75,8 @@ Workflow principal:
 
 Para baixo volume inicial, a arquitetura mais barata deve evoluir para:
 
-- `landing-react` em S3 + CloudFront.
-- `backoffice-react` em S3 + CloudFront.
+- `landing-react` em S3 + CloudFront. **Aplicado nesta branch.**
+- `backoffice-react` em S3 + CloudFront. **Aplicado nesta branch.**
 - `email` como Lambda consumindo SQS e usando SES.
 - `whatsapp` como Lambda para webhooks e envios sob demanda.
 - `auth` substituido por Cognito ou Lambda simples.
@@ -91,7 +91,7 @@ Ordem recomendada de migracao:
 4. Avaliar `auth` com Cognito.
 5. Migrar `leads` somente depois de estabilizar banco, migracoes e conexoes.
 
-Nao remova ECS/Fargate ate que cada servico tenha substituto validado em `develop`.
+Nesta etapa, ECS/Fargate foi mantido para os backends e removido apenas dos frontends estaticos. Nao remova ECS/Fargate dos demais servicos ate que cada servico tenha substituto validado em `develop`.
 
 ## Execucao Local
 
@@ -340,8 +340,11 @@ Nesta branch, o projeto foi preparado para novo deploy em `develop` com:
 - Dockerfile do `whatsapp` corrigido para build TypeScript.
 - Documentacao consolidada neste README.
 - Codigo legado de chat/prompt fora dos workspaces removido.
+- `landing-react` e `backoffice-react` publicados como sites estaticos em S3 + CloudFront, com `/api/*` roteado para o ALB.
+- Imagens e servicos ECS/Fargate dos frontends removidos do deploy.
 
 Pendencia operacional:
 
 - Validar `docker build` de todos os servicos em maquina/CI com Docker daemon ativo.
 - Confirmar secrets AWS e variaveis sensiveis antes de publicar em producao.
+- Migrar `email`, `whatsapp`, `auth` e eventualmente `leads` para Lambda/Cognito em fases futuras.

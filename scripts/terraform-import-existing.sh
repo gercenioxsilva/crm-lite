@@ -161,9 +161,7 @@ if [ -n "$vpc_id" ] && [ "$vpc_id" != "None" ]; then
 
     if [ -n "$listener_arn" ] && [ "$listener_arn" != "None" ]; then
       for pair in \
-        "aws_lb_listener_rule.api:100" \
-        "aws_lb_listener_rule.backoffice:200" \
-        "aws_lb_listener_rule.landing:300"; do
+        "aws_lb_listener_rule.api:100"; do
         address="${pair%%:*}"
         priority="${pair#*:}"
         rule_arn="$(aws_text elbv2 describe-rules \
@@ -243,9 +241,7 @@ for pair in \
   "aws_ecs_service.auth:crm-auth-${ENVIRONMENT}" \
   "aws_ecs_service.leads:crm-leads-${ENVIRONMENT}" \
   "aws_ecs_service.email:crm-email-${ENVIRONMENT}" \
-  "aws_ecs_service.whatsapp:crm-whatsapp-${ENVIRONMENT}" \
-  "aws_ecs_service.landing:crm-landing-${ENVIRONMENT}" \
-  "aws_ecs_service.backoffice:crm-backoffice-${ENVIRONMENT}"; do
+  "aws_ecs_service.whatsapp:crm-whatsapp-${ENVIRONMENT}"; do
   address="${pair%%:*}"
   service_name="${pair#*:}"
   service_status="$(aws_text ecs describe-services \

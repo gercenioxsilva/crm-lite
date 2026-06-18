@@ -57,9 +57,7 @@ data "aws_ecr_repository" "services" {
     "crm-auth",
     "crm-leads",
     "crm-email",
-    "crm-whatsapp",
-    "crm-landing-react",
-    "crm-backoffice-react"
+    "crm-whatsapp"
   ])
 
   name = each.key

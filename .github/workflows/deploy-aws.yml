@@ -84,7 +84,7 @@ jobs:
 
     - name: Create ECR repositories
       run: |
-        services=("api-gateway" "auth" "leads" "email" "whatsapp" "landing-react" "backoffice-react")
+        services=("api-gateway" "auth" "leads" "email" "whatsapp")
         
         for service in "${services[@]}"; do
           aws ecr describe-repositories --repository-names crm-$service 2>/dev/null || \
@@ -93,8 +93,8 @@ jobs:
 
     - name: Build and push Docker images
       run: |
-        # Build and push all services
-        services=("api-gateway" "auth" "leads" "email" "whatsapp" "landing-react" "backoffice-react")
+        # Build and push backend services. Frontends are deployed to S3 + CloudFront.
+        services=("api-gateway" "auth" "leads" "email" "whatsapp")
         
         for service in "${services[@]}"; do
           echo "Building $service..."
@@ -113,10 +113,43 @@ jobs:
         terraform plan -var="environment=$ENVIRONMENT" -var="image_tag=$IMAGE_TAG"
         terraform apply -auto-approve -var="environment=$ENVIRONMENT" -var="image_tag=$IMAGE_TAG"
 
+    - name: Deploy static frontends
+      working-directory: ./terraform
+      env:
+        VITE_API_URL: /api
+      run: |
+        LANDING_BUCKET=$(terraform output -raw landing_bucket_name)
+        BACKOFFICE_BUCKET=$(terraform output -raw backoffice_bucket_name)
+        LANDING_DISTRIBUTION_ID=$(terraform output -raw landing_cloudfront_distribution_id)
+        BACKOFFICE_DISTRIBUTION_ID=$(terraform output -raw backoffice_cloudfront_distribution_id)
+
+        cd ..
+
+        npm --workspace services/landing-react run build
+        aws s3 sync services/landing-react/dist "s3://$LANDING_BUCKET" \
+          --delete \
+          --exclude "index.html" \
+          --cache-control "public,max-age=31536000,immutable"
+        aws s3 cp services/landing-react/dist/index.html "s3://$LANDING_BUCKET/index.html" \
+          --cache-control "no-cache,no-store,must-revalidate" \
+          --content-type "text/html"
+
+        npm --workspace services/backoffice-react run build
+        aws s3 sync services/backoffice-react/dist "s3://$BACKOFFICE_BUCKET" \
+          --delete \
+          --exclude "index.html" \
+          --cache-control "public,max-age=31536000,immutable"
+        aws s3 cp services/backoffice-react/dist/index.html "s3://$BACKOFFICE_BUCKET/index.html" \
+          --cache-control "no-cache,no-store,must-revalidate" \
+          --content-type "text/html"
+
+        aws cloudfront create-invalidation --distribution-id "$LANDING_DISTRIBUTION_ID" --paths "/*"
+        aws cloudfront create-invalidation --distribution-id "$BACKOFFICE_DISTRIBUTION_ID" --paths "/*"
+
     - name: Update ECS services
       run: |
         # Only update services that exist in our current Terraform configuration
-        services=("api-gateway" "auth" "leads" "email" "whatsapp" "landing" "backoffice")
+        services=("api-gateway" "auth" "leads" "email" "whatsapp")
         
         for service in "${services[@]}"; do
           if aws ecs describe-services --cluster $ECS_CLUSTER-$ENVIRONMENT --services $ECS_SERVICE_PREFIX-$service-$ENVIRONMENT >/dev/null 2>&1; then
@@ -132,7 +165,7 @@ jobs:
 
     - name: Wait for deployment
       run: |
-        services=("api-gateway" "auth" "leads" "email" "whatsapp" "landing" "backoffice")
+        services=("api-gateway" "auth" "leads" "email" "whatsapp")
         
         for service in "${services[@]}"; do
           if aws ecs describe-services --cluster $ECS_CLUSTER-$ENVIRONMENT --services $ECS_SERVICE_PREFIX-$service-$ENVIRONMENT >/dev/null 2>&1; then

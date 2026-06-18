@@ -73,56 +73,6 @@ resource "aws_lb_target_group" "api_gateway" {
   }
 }
 
-resource "aws_lb_target_group" "landing" {
-  name_prefix = "land-"
-  port        = 80
-  protocol    = "HTTP"
-  vpc_id      = aws_vpc.main.id
-  target_type = "ip"
-
-  health_check {
-    enabled             = true
-    healthy_threshold   = 2
-    interval            = 30
-    matcher             = "200"
-    path                = "/"
-    port                = "traffic-port"
-    protocol            = "HTTP"
-    timeout             = 5
-    unhealthy_threshold = 2
-  }
-
-  tags = {
-    Name        = "crm-landing-${var.environment}"
-    Environment = var.environment
-  }
-}
-
-resource "aws_lb_target_group" "backoffice" {
-  name_prefix = "back-"
-  port        = 80
-  protocol    = "HTTP"
-  vpc_id      = aws_vpc.main.id
-  target_type = "ip"
-
-  health_check {
-    enabled             = true
-    healthy_threshold   = 2
-    interval            = 30
-    matcher             = "200"
-    path                = "/"
-    port                = "traffic-port"
-    protocol            = "HTTP"
-    timeout             = 5
-    unhealthy_threshold = 2
-  }
-
-  tags = {
-    Name        = "crm-backoffice-${var.environment}"
-    Environment = var.environment
-  }
-}
-
 # ALB Listener
 resource "aws_lb_listener" "main" {
   load_balancer_arn = aws_lb.main.arn
@@ -131,7 +81,7 @@ resource "aws_lb_listener" "main" {
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.landing.arn
+    target_group_arn = aws_lb_target_group.api_gateway.arn
   }
 }
 
@@ -148,38 +98,6 @@ resource "aws_lb_listener_rule" "api" {
   condition {
     path_pattern {
       values = ["/api/*", "/health"]
-    }
-  }
-}
-
-resource "aws_lb_listener_rule" "backoffice" {
-  listener_arn = aws_lb_listener.main.arn
-  priority     = 200
-
-  action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.backoffice.arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/backoffice", "/backoffice/*"]
-    }
-  }
-}
-
-resource "aws_lb_listener_rule" "landing" {
-  listener_arn = aws_lb_listener.main.arn
-  priority     = 300
-
-  action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.landing.arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/landing", "/landing/*"]
     }
   }
 }
