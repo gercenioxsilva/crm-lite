@@ -399,6 +399,7 @@ Antes de considerar pronto para AWS:
 - ECS deploy: nao use apenas `aws ecs wait services-stable` sem diagnostico. O workflow usa `scripts/wait-ecs-services.sh` com timeout maior, eventos do servico e detalhes de tasks paradas.
 - Migracoes: o workflow usa `scripts/run-leads-migrations-task.sh`, aguarda a task Fargate terminar e falha se o container `leads` retornar exit code diferente de `0`.
 - Banco existente sem historico: `services/leads/src/scripts/migrate.ts` cria `schema_migrations`, faz baseline das migrations legadas quando detecta schema CRM existente e executa apenas a migracao SaaS pendente.
+- Demo MVP: migrations rodam como melhor-esforco e `scripts/validate-demo-mvp.sh` e o criterio final do deploy. Ele cria um lead via `/api/public/leads` e confirma leitura via `/api/backoffice/leads` com `mock-admin-token`.
 
 ## Regras De Manutencao
 

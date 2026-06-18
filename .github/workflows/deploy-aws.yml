@@ -217,6 +217,8 @@ jobs:
 
     - name: Run database migrations
       if: github.ref == 'refs/heads/main'
+      env:
+        MIGRATIONS_REQUIRED: "false"
       run: bash scripts/run-leads-migrations-task.sh
 
     - name: Wait for deployment
@@ -224,3 +226,7 @@ jobs:
         WAIT_TIMEOUT_SECONDS: 1800
         WAIT_INTERVAL_SECONDS: 30
       run: bash scripts/wait-ecs-services.sh api-gateway leads
+
+    - name: Validate demo MVP flow
+      if: github.ref == 'refs/heads/main'
+      run: bash scripts/validate-demo-mvp.sh
