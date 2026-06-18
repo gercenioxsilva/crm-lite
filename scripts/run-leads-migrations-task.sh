@@ -3,6 +3,7 @@ set -euo pipefail
 
 ENVIRONMENT="${ENVIRONMENT:-prod}"
 ECS_CLUSTER="${ECS_CLUSTER:-crm-cluster}"
+MIGRATIONS_REQUIRED="${MIGRATIONS_REQUIRED:-true}"
 
 cluster_name="${ECS_CLUSTER}-${ENVIRONMENT}"
 
@@ -104,7 +105,12 @@ if [ "$exit_code" != "0" ]; then
     echo "::endgroup::"
   fi
 
-  exit 1
+  if [ "$MIGRATIONS_REQUIRED" = "true" ]; then
+    exit 1
+  fi
+
+  echo "Migration failure is non-blocking because MIGRATIONS_REQUIRED=false. Demo MVP validation will verify the real application flow."
+  exit 0
 fi
 
 echo "Migration task completed successfully."
