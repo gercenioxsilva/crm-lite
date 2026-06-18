@@ -2,6 +2,10 @@ import { FastifyInstance } from 'fastify';
 import { Pool } from 'pg';
 
 const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID || '00000000-0000-0000-0000-000000000001';
+const pgSslMode = (process.env.PGSSLMODE || '').toLowerCase();
+const ssl = pgSslMode === 'require'
+  ? { rejectUnauthorized: false }
+  : undefined;
 
 // Use DATABASE_URL if available, otherwise use individual env vars
 const pool = process.env.DATABASE_URL 
@@ -9,7 +13,8 @@ const pool = process.env.DATABASE_URL
       connectionString: process.env.DATABASE_URL,
       connectionTimeoutMillis: 5000,
       idleTimeoutMillis: 30000,
-      max: 20
+      max: 20,
+      ssl
     })
   : new Pool({
       host: process.env.POSTGRES_HOST || 'db',
@@ -19,7 +24,8 @@ const pool = process.env.DATABASE_URL
       password: process.env.POSTGRES_PASSWORD || 'quiz',
       connectionTimeoutMillis: 5000,
       idleTimeoutMillis: 30000,
-      max: 20
+      max: 20,
+      ssl
     });
 
 function tenantIdFromRequest(req: any, _required = true): string {

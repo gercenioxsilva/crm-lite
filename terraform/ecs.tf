@@ -165,7 +165,8 @@ resource "aws_ecs_task_definition" "leads" {
         { name = "NODE_ENV", value = var.environment },
         { name = "PORT", value = "3020" },
         { name = "DEFAULT_TENANT_ID", value = "00000000-0000-0000-0000-000000000001" },
-        { name = "DATABASE_URL", value = "postgres://${aws_db_instance.postgres.username}:${aws_db_instance.postgres.password}@${aws_db_instance.postgres.endpoint}/${aws_db_instance.postgres.db_name}" }
+        { name = "DATABASE_URL", value = "postgres://${aws_db_instance.postgres.username}:${aws_db_instance.postgres.password}@${aws_db_instance.postgres.endpoint}/${aws_db_instance.postgres.db_name}" },
+        { name = "PGSSLMODE", value = "require" }
       ]
 
       healthCheck = {
