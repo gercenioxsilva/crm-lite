@@ -2,7 +2,7 @@ name: Deploy CRM to AWS
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -47,7 +47,7 @@ jobs:
 
     - name: Set environment variables
       run: |
-        echo "ENVIRONMENT=${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}" >> $GITHUB_ENV
+        echo "ENVIRONMENT=prod" >> $GITHUB_ENV
         echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
         echo "ECR_REGISTRY=$(aws sts get-caller-identity --query Account --output text).dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com" >> $GITHUB_ENV
 
@@ -215,7 +215,7 @@ jobs:
         done
 
     - name: Run database migrations
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+      if: github.ref == 'refs/heads/main'
       run: |
         # Get infrastructure info from AWS
         VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=crm-vpc-$ENVIRONMENT" --query 'Vpcs[0].VpcId' --output text)
