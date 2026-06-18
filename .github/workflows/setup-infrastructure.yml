@@ -68,6 +68,10 @@ jobs:
         terraform workspace select ${{ github.event.inputs.environment }} || \
         terraform workspace new ${{ github.event.inputs.environment }}
 
+    - name: Import Existing Infrastructure
+      working-directory: ./terraform
+      run: bash ../scripts/terraform-import-existing.sh "${{ github.event.inputs.environment }}"
+
     - name: Terraform Plan
       if: github.event.inputs.destroy == 'false'
       working-directory: ./terraform

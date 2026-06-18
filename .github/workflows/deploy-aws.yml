@@ -109,6 +109,7 @@ jobs:
       run: |
         terraform init
         terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT
+        bash ../scripts/terraform-import-existing.sh "$ENVIRONMENT"
         terraform plan -var="environment=$ENVIRONMENT" -var="image_tag=$IMAGE_TAG"
         terraform apply -auto-approve -var="environment=$ENVIRONMENT" -var="image_tag=$IMAGE_TAG"
 
