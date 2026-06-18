@@ -122,6 +122,8 @@ jobs:
         BACKOFFICE_BUCKET=$(terraform output -raw backoffice_bucket_name)
         LANDING_DISTRIBUTION_ID=$(terraform output -raw landing_cloudfront_distribution_id)
         BACKOFFICE_DISTRIBUTION_ID=$(terraform output -raw backoffice_cloudfront_distribution_id)
+        LANDING_DOMAIN=$(terraform output -raw landing_cloudfront_domain_name)
+        BACKOFFICE_DOMAIN=$(terraform output -raw backoffice_cloudfront_domain_name)
 
         cd ..
 
@@ -133,6 +135,7 @@ jobs:
         aws s3 cp services/landing-react/dist/index.html "s3://$LANDING_BUCKET/index.html" \
           --cache-control "no-cache,no-store,must-revalidate" \
           --content-type "text/html"
+        aws s3api head-object --bucket "$LANDING_BUCKET" --key index.html >/dev/null
 
         npm --workspace services/backoffice-react run build
         aws s3 sync services/backoffice-react/dist "s3://$BACKOFFICE_BUCKET" \
@@ -142,9 +145,42 @@ jobs:
         aws s3 cp services/backoffice-react/dist/index.html "s3://$BACKOFFICE_BUCKET/index.html" \
           --cache-control "no-cache,no-store,must-revalidate" \
           --content-type "text/html"
+        aws s3api head-object --bucket "$BACKOFFICE_BUCKET" --key index.html >/dev/null
 
-        aws cloudfront create-invalidation --distribution-id "$LANDING_DISTRIBUTION_ID" --paths "/*"
-        aws cloudfront create-invalidation --distribution-id "$BACKOFFICE_DISTRIBUTION_ID" --paths "/*"
+        LANDING_INVALIDATION_ID=$(aws cloudfront create-invalidation \
+          --distribution-id "$LANDING_DISTRIBUTION_ID" \
+          --paths "/*" \
+          --query 'Invalidation.Id' \
+          --output text)
+        BACKOFFICE_INVALIDATION_ID=$(aws cloudfront create-invalidation \
+          --distribution-id "$BACKOFFICE_DISTRIBUTION_ID" \
+          --paths "/*" \
+          --query 'Invalidation.Id' \
+          --output text)
+
+        aws cloudfront wait invalidation-completed --distribution-id "$LANDING_DISTRIBUTION_ID" --id "$LANDING_INVALIDATION_ID"
+        aws cloudfront wait invalidation-completed --distribution-id "$BACKOFFICE_DISTRIBUTION_ID" --id "$BACKOFFICE_INVALIDATION_ID"
+
+        for url in "https://$LANDING_DOMAIN" "https://$BACKOFFICE_DOMAIN"; do
+          site_available=false
+
+          for attempt in {1..12}; do
+            status=$(curl -L -s -o /tmp/crm-static-site.html -w "%{http_code}" "$url")
+            if [ "$status" = "200" ] && ! grep -q "AccessDenied" /tmp/crm-static-site.html; then
+              echo "$url is available"
+              site_available=true
+              break
+            fi
+
+            echo "Waiting for $url to become available. Attempt $attempt returned $status."
+            sleep 10
+          done
+
+          if [ "$site_available" != "true" ]; then
+            echo "$url did not become available"
+            exit 1
+          fi
+        done
 
     - name: Update ECS services
       run: |
