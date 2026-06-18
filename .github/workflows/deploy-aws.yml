@@ -121,9 +121,20 @@ jobs:
         export TF_VAR_whatsapp_access_token="${WHATSAPP_ACCESS_TOKEN_SECRET:-}"
         export TF_VAR_whatsapp_phone_number_id="${WHATSAPP_PHONE_NUMBER_ID_SECRET:-}"
         export TF_VAR_whatsapp_verify_token="${WHATSAPP_VERIFY_TOKEN_SECRET:-quiz-whatsapp-token}"
-        # RESET_SCHEMA=true drops all tables before migrations for a clean slate.
-        # Set back to false (or remove this line) once the DB is stable and has real data.
+        # MVP database reset: create a clean RDS instance and run seed migrations.
+        # Change this token only when we intentionally want a brand-new empty DB.
+        export TF_VAR_database_rebuild_token="mvp1"
         export TF_VAR_reset_schema="true"
+
+        legacy_db_identifier="crm-postgres-${ENVIRONMENT}-app"
+        if aws rds describe-db-instances --db-instance-identifier "$legacy_db_identifier" >/dev/null 2>&1; then
+          echo "Disabling deletion protection on legacy DB ${legacy_db_identifier} before clean MVP replacement..."
+          aws rds modify-db-instance \
+            --db-instance-identifier "$legacy_db_identifier" \
+            --no-deletion-protection \
+            --apply-immediately >/dev/null
+          aws rds wait db-instance-available --db-instance-identifier "$legacy_db_identifier"
+        fi
 
         terraform init
         terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT

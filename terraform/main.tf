@@ -79,6 +79,12 @@ variable "reset_schema" {
   default     = "false"
 }
 
+variable "database_rebuild_token" {
+  description = "Small suffix used in the RDS identifier. Change it only when a clean MVP database must be created."
+  type        = string
+  default     = "mvp1"
+}
+
 # Data sources
 data "aws_availability_zones" "available" {
   state = "available"

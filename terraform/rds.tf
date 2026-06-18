@@ -31,7 +31,7 @@ resource "aws_security_group" "rds" {
 
 # RDS PostgreSQL Instance
 resource "aws_db_instance" "postgres" {
-  identifier = "crm-postgres-${var.environment}-app"
+  identifier = "crm-postgres-${var.environment}-${var.database_rebuild_token}"
 
   engine         = "postgres"
   engine_version = "16.4"
@@ -53,11 +53,11 @@ resource "aws_db_instance" "postgres" {
   backup_window           = "03:00-04:00"
   maintenance_window      = "sun:04:00-sun:05:00"
 
-  skip_final_snapshot = var.environment != "prod"
-  deletion_protection = var.environment == "prod"
+  skip_final_snapshot = true
+  deletion_protection = false
 
   tags = {
-    Name        = "crm-postgres-${var.environment}-app"
+    Name        = "crm-postgres-${var.environment}-${var.database_rebuild_token}"
     Environment = var.environment
   }
 }

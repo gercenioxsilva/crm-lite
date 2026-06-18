@@ -15,11 +15,11 @@ resource "aws_ecs_task_definition" "migrate" {
       command = ["npm", "run", "migrate"]
 
       environment = [
-        { name = "NODE_ENV",       value = var.environment },
-        { name = "DATABASE_URL",   value = "postgres://${aws_db_instance.postgres.username}:${aws_db_instance.postgres.password}@${aws_db_instance.postgres.endpoint}/${aws_db_instance.postgres.db_name}" },
+        { name = "NODE_ENV", value = var.environment },
+        { name = "DATABASE_URL", value = "postgres://${aws_db_instance.postgres.username}:${aws_db_instance.postgres.password}@${aws_db_instance.postgres.endpoint}/${aws_db_instance.postgres.db_name}" },
         # Set to "true" only when you need a clean-slate migration (drops all tables).
         # Change back to "false" after the first successful deployment that uses this reset.
-        { name = "RESET_SCHEMA",   value = var.reset_schema }
+        { name = "RESET_SCHEMA", value = var.reset_schema }
       ]
 
       logConfiguration = {

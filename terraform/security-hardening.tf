@@ -40,6 +40,22 @@ resource "aws_security_group" "internal_services" {
     description = "Internal VPC communication"
   }
 
+  egress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "DNS resolution inside VPC"
+  }
+
+  egress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "DNS resolution inside VPC"
+  }
+
   tags = {
     Name        = "crm-internal-services-${var.environment}"
     Environment = var.environment
@@ -84,6 +100,22 @@ resource "aws_security_group" "external_api_services" {
     protocol    = "tcp"
     cidr_blocks = [aws_vpc.main.cidr_block]
     description = "Internal VPC communication"
+  }
+
+  egress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "DNS resolution inside VPC"
+  }
+
+  egress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "DNS resolution inside VPC"
   }
 
   tags = {

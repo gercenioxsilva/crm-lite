@@ -4,6 +4,7 @@ set -euo pipefail
 ENVIRONMENT="${ENVIRONMENT:-prod}"
 ECS_CLUSTER="${ECS_CLUSTER:-crm-cluster}"
 MIGRATIONS_REQUIRED="${MIGRATIONS_REQUIRED:-true}"
+MIGRATION_ASSIGN_PUBLIC_IP="${MIGRATION_ASSIGN_PUBLIC_IP:-ENABLED}"
 
 cluster_name="${ECS_CLUSTER}-${ENVIRONMENT}"
 
@@ -14,6 +15,11 @@ vpc_id=$(aws ec2 describe-vpcs \
 
 private_subnets=$(aws ec2 describe-subnets \
   --filters "Name=vpc-id,Values=${vpc_id}" "Name=tag:Name,Values=crm-private-subnet-*-${ENVIRONMENT}" \
+  --query 'Subnets[].SubnetId' \
+  --output text | tr '\t' ',')
+
+public_subnets=$(aws ec2 describe-subnets \
+  --filters "Name=vpc-id,Values=${vpc_id}" "Name=tag:Name,Values=crm-public-subnet-*-${ENVIRONMENT}" \
   --query 'Subnets[].SubnetId' \
   --output text | tr '\t' ',')
 
@@ -32,18 +38,24 @@ if [ -z "$private_subnets" ] || [ "$private_subnets" = "None" ]; then
   exit 1
 fi
 
+if [ -z "$public_subnets" ] || [ "$public_subnets" = "None" ]; then
+  echo "Public subnets for environment ${ENVIRONMENT} not found."
+  exit 1
+fi
+
 if [ -z "$security_group" ] || [ "$security_group" = "None" ]; then
   echo "Internal services security group for environment ${ENVIRONMENT} not found."
   exit 1
 fi
 
-echo "Running migrations in ${cluster_name} with subnets ${private_subnets} and security group ${security_group}"
+migration_subnets="$public_subnets"
+echo "Running migrations in ${cluster_name} with subnets ${migration_subnets}, assignPublicIp=${MIGRATION_ASSIGN_PUBLIC_IP} and security group ${security_group}"
 
 run_task_response=$(aws ecs run-task \
   --cluster "$cluster_name" \
   --task-definition "crm-migrate-${ENVIRONMENT}" \
   --launch-type FARGATE \
-  --network-configuration "awsvpcConfiguration={subnets=[$private_subnets],securityGroups=[$security_group]}" \
+  --network-configuration "awsvpcConfiguration={subnets=[$migration_subnets],securityGroups=[$security_group],assignPublicIp=$MIGRATION_ASSIGN_PUBLIC_IP}" \
   --overrides '{
     "containerOverrides": [{
       "name": "migrate",
@@ -80,11 +92,40 @@ stopped_reason=$(aws ecs describe-tasks \
   --query 'tasks[0].stoppedReason' \
   --output text)
 
-# awslogs stream name format: {prefix}/{container}/{task-id}
-# ECS describe-tasks does not expose logStreamName; compute it from the task ARN.
+# awslogs stream name format is usually {prefix}/{container}/{task-id}, but
+# deployments have shown that assuming the stream name can hide the real error.
 task_id=$(echo "$task_arn" | awk -F'/' '{print $NF}')
 log_group="/ecs/crm-${ENVIRONMENT}"
 log_stream="migrate/migrate/${task_id}"
+
+resolve_log_stream() {
+  local resolved
+
+  resolved=$(aws logs describe-log-streams \
+    --log-group-name "$log_group" \
+    --log-stream-name-prefix "migrate/migrate/" \
+    --order-by LastEventTime \
+    --descending \
+    --max-items 25 \
+    --query 'logStreams[].logStreamName' \
+    --output text 2>/dev/null | tr '\t' '\n' | grep "$task_id" | head -n 1 || true)
+
+  if [ -n "$resolved" ] && [ "$resolved" != "None" ]; then
+    log_stream="$resolved"
+  fi
+}
+
+print_migration_logs() {
+  resolve_log_stream
+  echo "::group::Migration task logs (${log_group}/${log_stream})"
+  aws logs get-log-events \
+    --log-group-name "$log_group" \
+    --log-stream-name "$log_stream" \
+    --limit 200 \
+    --query 'events[].message' \
+    --output text 2>/dev/null || echo "(no log stream found - container may have failed before writing output)"
+  echo "::endgroup::"
+}
 
 if [ "$exit_code" != "0" ]; then
   echo "Migration task failed with exit code ${exit_code}. Reason: ${stopped_reason}"
@@ -94,14 +135,8 @@ if [ "$exit_code" != "0" ]; then
     --query 'tasks[0].containers[].{name:name,exitCode:exitCode,reason:reason}' \
     --output json
 
-  echo "::group::Migration task logs (${log_group}/${log_stream})"
-  aws logs get-log-events \
-    --log-group-name "$log_group" \
-    --log-stream-name "$log_stream" \
-    --limit 200 \
-    --query 'events[].message' \
-    --output text 2>/dev/null || echo "(no log stream found — container may have crashed before writing output)"
-  echo "::endgroup::"
+  sleep 10
+  print_migration_logs
 
   if [ "$MIGRATIONS_REQUIRED" = "true" ]; then
     exit 1
@@ -111,4 +146,6 @@ if [ "$exit_code" != "0" ]; then
   exit 0
 fi
 
+sleep 5
+print_migration_logs
 echo "Migration task completed successfully."

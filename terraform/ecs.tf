@@ -44,6 +44,23 @@ resource "aws_security_group" "ecs_tasks" {
     description = "HTTPS for AWS services"
   }
 
+
+  egress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "DNS resolution inside VPC"
+  }
+
+  egress {
+    from_port   = 53
+    to_port     = 53
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+    description = "DNS resolution inside VPC"
+  }
+
   tags = {
     Name        = "crm-ecs-tasks-${var.environment}"
     Environment = var.environment
