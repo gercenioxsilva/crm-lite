@@ -33,6 +33,18 @@ state_rm_if_id_equals() {
   fi
 }
 
+state_rm_if_id_not_equals() {
+  local address="$1"
+  local expected_id="$2"
+  local current_id
+  current_id="$(state_id "$address")"
+
+  if [ -n "$current_id" ] && [ "$current_id" != "$expected_id" ]; then
+    log "remove state $address because it points to $current_id, expected $expected_id"
+    terraform state rm "$address"
+  fi
+}
+
 import_if_missing() {
   local address="$1"
   local import_id="${2:-}"
@@ -252,6 +264,7 @@ done
 
 state_rm_if_id_equals "aws_db_subnet_group.main" "crm-db-subnet-group-${ENVIRONMENT}"
 state_rm_if_id_equals "aws_db_instance.postgres" "crm-postgres-${ENVIRONMENT}"
+state_rm_if_id_not_equals "aws_db_instance.postgres" "crm-postgres-${ENVIRONMENT}-${DATABASE_REBUILD_TOKEN}"
 state_rm_if_id_equals "aws_docdb_subnet_group.main" "crm-docdb-subnet-group-${ENVIRONMENT}"
 state_rm_if_id_equals "aws_docdb_cluster.main" "crm-docdb-${ENVIRONMENT}"
 for index in 0 1; do
