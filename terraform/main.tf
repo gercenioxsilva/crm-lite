@@ -36,6 +36,41 @@ variable "image_tag" {
   default     = "latest"
 }
 
+variable "internal_api_token" {
+  description = "Shared token used by API Gateway to call internal Lambda Function URLs"
+  type        = string
+  default     = "change-me-internal-api-token"
+  sensitive   = true
+}
+
+variable "auth_jwt_secret" {
+  description = "JWT signing secret for the simple auth Lambda and API Gateway validation"
+  type        = string
+  default     = "change-me-auth-jwt-secret"
+  sensitive   = true
+}
+
+variable "whatsapp_access_token" {
+  description = "Meta WhatsApp access token"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "whatsapp_phone_number_id" {
+  description = "Meta WhatsApp phone number ID"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "whatsapp_verify_token" {
+  description = "Meta WhatsApp webhook verification token"
+  type        = string
+  default     = "quiz-whatsapp-token"
+  sensitive   = true
+}
+
 # Data sources
 data "aws_availability_zones" "available" {
   state = "available"

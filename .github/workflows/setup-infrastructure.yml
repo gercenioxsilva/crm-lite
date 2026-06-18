@@ -40,6 +40,21 @@ jobs:
       with:
         terraform_version: ${{ env.TF_VERSION }}
 
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build application packages
+      run: npm run build:all
+
+    - name: Package Lambda services
+      run: bash scripts/package-lambda-services.sh
+
     - name: Create S3 bucket for Terraform state
       run: |
         aws s3api head-bucket --bucket crm-terraform-state-us-east-1 2>/dev/null || \
@@ -51,7 +66,7 @@ jobs:
 
     - name: Create ECR repositories
       run: |
-        repositories=("crm-api-gateway" "crm-auth" "crm-leads" "crm-email" "crm-whatsapp" "crm-landing-react" "crm-backoffice-react")
+        repositories=("crm-api-gateway" "crm-leads")
         
         for repo in "${repositories[@]}"; do
           aws ecr create-repository --repository-name $repo --region ${{ env.AWS_REGION }} || true
@@ -79,7 +94,19 @@ jobs:
     - name: Terraform Plan
       if: github.event.inputs.destroy == 'false'
       working-directory: ./terraform
+      env:
+        INTERNAL_API_TOKEN_SECRET: ${{ secrets.INTERNAL_API_TOKEN }}
+        AUTH_JWT_SECRET_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
+        WHATSAPP_ACCESS_TOKEN_SECRET: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}
+        WHATSAPP_PHONE_NUMBER_ID_SECRET: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
+        WHATSAPP_VERIFY_TOKEN_SECRET: ${{ secrets.WHATSAPP_VERIFY_TOKEN }}
       run: |
+        export TF_VAR_internal_api_token="${INTERNAL_API_TOKEN_SECRET:-change-me-internal-api-token}"
+        export TF_VAR_auth_jwt_secret="${AUTH_JWT_SECRET_SECRET:-change-me-auth-jwt-secret}"
+        export TF_VAR_whatsapp_access_token="${WHATSAPP_ACCESS_TOKEN_SECRET:-}"
+        export TF_VAR_whatsapp_phone_number_id="${WHATSAPP_PHONE_NUMBER_ID_SECRET:-}"
+        export TF_VAR_whatsapp_verify_token="${WHATSAPP_VERIFY_TOKEN_SECRET:-quiz-whatsapp-token}"
+
         terraform plan \
           -var="environment=${{ github.event.inputs.environment }}" \
           -var="image_tag=latest" \
@@ -93,7 +120,19 @@ jobs:
     - name: Terraform Destroy
       if: github.event.inputs.destroy == 'true'
       working-directory: ./terraform
+      env:
+        INTERNAL_API_TOKEN_SECRET: ${{ secrets.INTERNAL_API_TOKEN }}
+        AUTH_JWT_SECRET_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
+        WHATSAPP_ACCESS_TOKEN_SECRET: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}
+        WHATSAPP_PHONE_NUMBER_ID_SECRET: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
+        WHATSAPP_VERIFY_TOKEN_SECRET: ${{ secrets.WHATSAPP_VERIFY_TOKEN }}
       run: |
+        export TF_VAR_internal_api_token="${INTERNAL_API_TOKEN_SECRET:-change-me-internal-api-token}"
+        export TF_VAR_auth_jwt_secret="${AUTH_JWT_SECRET_SECRET:-change-me-auth-jwt-secret}"
+        export TF_VAR_whatsapp_access_token="${WHATSAPP_ACCESS_TOKEN_SECRET:-}"
+        export TF_VAR_whatsapp_phone_number_id="${WHATSAPP_PHONE_NUMBER_ID_SECRET:-}"
+        export TF_VAR_whatsapp_verify_token="${WHATSAPP_VERIFY_TOKEN_SECRET:-quiz-whatsapp-token}"
+
         terraform destroy -auto-approve \
           -var="environment=${{ github.event.inputs.environment }}" \
           -var="image_tag=latest"

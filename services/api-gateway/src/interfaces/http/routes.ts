@@ -114,6 +114,31 @@ async function createLead(input: any) {
   }
 }
 
+async function proxyJson(baseUrl: string, path: string, req: any, reply: any) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: req.method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...internalApiHeaders(),
+      ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {})
+    },
+    body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body || {})
+  });
+
+  const contentType = response.headers.get('content-type') || '';
+  const payload = contentType.includes('application/json')
+    ? await response.json()
+    : await response.text();
+
+  reply.code(response.status);
+  return payload;
+}
+
+function internalApiHeaders(): Record<string, string> {
+  const token = process.env.INTERNAL_API_TOKEN;
+  return token ? { 'x-internal-api-token': token } : {};
+}
+
 export async function registerRoutes(app: FastifyInstance){
   // Log all registered routes for debugging
   app.addHook('onReady', async () => {
@@ -185,6 +210,18 @@ export async function registerRoutes(app: FastifyInstance){
       source: 'google' 
     });
     return { success: true, lead };
+  });
+
+  app.post('/api/oauth/token', { schema: { tags: ['auth'], summary: 'OAuth token' } as any }, async (req, reply) => {
+    return proxyJson(process.env.AUTH_BASE_URL || 'http://auth:3050', '/oauth/token', req, reply);
+  });
+
+  app.post('/api/login', { schema: { tags: ['auth'], summary: 'User login' } as any }, async (req, reply) => {
+    return proxyJson(process.env.AUTH_BASE_URL || 'http://auth:3050', '/login', req, reply);
+  });
+
+  app.post('/api/validate', { schema: { tags: ['auth'], summary: 'Validate token' } as any }, async (req, reply) => {
+    return proxyJson(process.env.AUTH_BASE_URL || 'http://auth:3050', '/validate', req, reply);
   });
 
   // Protected routes
@@ -483,7 +520,7 @@ export async function registerRoutes(app: FastifyInstance){
           try {
             await fetch(`${process.env.EMAIL_BASE_URL || 'http://email:3040'}/emails`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', ...internalApiHeaders() },
               body: JSON.stringify({
                 from: { email: 'noreply@crm.com', name: 'CRM System' },
                 to: [{ email: body.emailContent.to }],
@@ -516,7 +553,8 @@ export async function registerRoutes(app: FastifyInstance){
         const response = await fetch(`${process.env.EMAIL_BASE_URL || 'http://email:3040'}/emails`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            ...internalApiHeaders()
           },
           body: JSON.stringify(body)
         });
@@ -539,7 +577,9 @@ export async function registerRoutes(app: FastifyInstance){
     }, async (req) => {
       try {
         const { leadId } = req.params as { leadId: string };
-        const response = await fetch(`${process.env.EMAIL_BASE_URL || 'http://email:3040'}/emails/lead/${leadId}`);
+        const response = await fetch(`${process.env.EMAIL_BASE_URL || 'http://email:3040'}/emails/lead/${leadId}`, {
+          headers: internalApiHeaders()
+        });
         
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
@@ -582,7 +622,8 @@ export async function registerRoutes(app: FastifyInstance){
         const response = await fetch(`${process.env.WHATSAPP_BASE_URL || 'http://whatsapp:3050'}/send-message`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            ...internalApiHeaders()
           },
           body: JSON.stringify(body)
         });
@@ -610,7 +651,8 @@ export async function registerRoutes(app: FastifyInstance){
         const response = await fetch(`${process.env.WHATSAPP_BASE_URL || 'http://whatsapp:3050'}/leads/${id}/welcome`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            ...internalApiHeaders()
           },
           body: JSON.stringify(body)
         });
@@ -638,7 +680,8 @@ export async function registerRoutes(app: FastifyInstance){
         const response = await fetch(`${process.env.WHATSAPP_BASE_URL || 'http://whatsapp:3050'}/leads/${id}/follow-up`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            ...internalApiHeaders()
           },
           body: JSON.stringify(body)
         });
@@ -666,7 +709,8 @@ export async function registerRoutes(app: FastifyInstance){
         const response = await fetch(`${process.env.WHATSAPP_BASE_URL || 'http://whatsapp:3050'}/leads/${id}/qualification`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            ...internalApiHeaders()
           },
           body: JSON.stringify(body)
         });

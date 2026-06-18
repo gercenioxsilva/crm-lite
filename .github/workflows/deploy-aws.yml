@@ -45,6 +45,9 @@ jobs:
     - name: Validate leads tests
       run: npm run test:leads
 
+    - name: Package Lambda services
+      run: bash scripts/package-lambda-services.sh
+
     - name: Set environment variables
       run: |
         echo "ENVIRONMENT=prod" >> $GITHUB_ENV
@@ -84,7 +87,7 @@ jobs:
 
     - name: Create ECR repositories
       run: |
-        services=("api-gateway" "auth" "leads" "email" "whatsapp")
+        services=("api-gateway" "leads")
         
         for service in "${services[@]}"; do
           aws ecr describe-repositories --repository-names crm-$service 2>/dev/null || \
@@ -93,8 +96,8 @@ jobs:
 
     - name: Build and push Docker images
       run: |
-        # Build and push backend services. Frontends are deployed to S3 + CloudFront.
-        services=("api-gateway" "auth" "leads" "email" "whatsapp")
+        # Build and push ECS services. Auth, email and WhatsApp are deployed as Lambda zip packages.
+        services=("api-gateway" "leads")
         
         for service in "${services[@]}"; do
           echo "Building $service..."
@@ -106,7 +109,19 @@ jobs:
 
     - name: Deploy infrastructure with Terraform
       working-directory: ./terraform
+      env:
+        INTERNAL_API_TOKEN_SECRET: ${{ secrets.INTERNAL_API_TOKEN }}
+        AUTH_JWT_SECRET_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
+        WHATSAPP_ACCESS_TOKEN_SECRET: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}
+        WHATSAPP_PHONE_NUMBER_ID_SECRET: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
+        WHATSAPP_VERIFY_TOKEN_SECRET: ${{ secrets.WHATSAPP_VERIFY_TOKEN }}
       run: |
+        export TF_VAR_internal_api_token="${INTERNAL_API_TOKEN_SECRET:-change-me-internal-api-token}"
+        export TF_VAR_auth_jwt_secret="${AUTH_JWT_SECRET_SECRET:-change-me-auth-jwt-secret}"
+        export TF_VAR_whatsapp_access_token="${WHATSAPP_ACCESS_TOKEN_SECRET:-}"
+        export TF_VAR_whatsapp_phone_number_id="${WHATSAPP_PHONE_NUMBER_ID_SECRET:-}"
+        export TF_VAR_whatsapp_verify_token="${WHATSAPP_VERIFY_TOKEN_SECRET:-quiz-whatsapp-token}"
+
         terraform init
         terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT
         bash ../scripts/terraform-import-existing.sh "$ENVIRONMENT"
@@ -185,7 +200,7 @@ jobs:
     - name: Update ECS services
       run: |
         # Only update services that exist in our current Terraform configuration
-        services=("api-gateway" "auth" "leads" "email" "whatsapp")
+        services=("api-gateway" "leads")
         
         for service in "${services[@]}"; do
           if aws ecs describe-services --cluster $ECS_CLUSTER-$ENVIRONMENT --services $ECS_SERVICE_PREFIX-$service-$ENVIRONMENT >/dev/null 2>&1; then
@@ -201,7 +216,7 @@ jobs:
 
     - name: Wait for deployment
       run: |
-        services=("api-gateway" "auth" "leads" "email" "whatsapp")
+        services=("api-gateway" "leads")
         
         for service in "${services[@]}"; do
           if aws ecs describe-services --cluster $ECS_CLUSTER-$ENVIRONMENT --services $ECS_SERVICE_PREFIX-$service-$ENVIRONMENT >/dev/null 2>&1; then

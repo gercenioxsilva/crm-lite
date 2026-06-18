@@ -179,10 +179,7 @@ if [ -n "$vpc_id" ] && [ "$vpc_id" != "None" ]; then
 
   if [ -n "$namespace_id" ] && [ "$namespace_id" != "None" ]; then
     for pair in \
-      "aws_service_discovery_service.auth:crm-auth-${ENVIRONMENT}" \
-      "aws_service_discovery_service.leads:crm-leads-${ENVIRONMENT}" \
-      "aws_service_discovery_service.email:crm-email-${ENVIRONMENT}" \
-      "aws_service_discovery_service.whatsapp:crm-whatsapp-${ENVIRONMENT}"; do
+      "aws_service_discovery_service.leads:crm-leads-${ENVIRONMENT}"; do
       address="${pair%%:*}"
       service_name="${pair#*:}"
       service_id="$(aws_text servicediscovery list-services \
@@ -238,10 +235,7 @@ import_if_missing "aws_ecs_cluster.main" "$ecs_cluster_name"
 
 for pair in \
   "aws_ecs_service.api_gateway:crm-api-gateway-${ENVIRONMENT}" \
-  "aws_ecs_service.auth:crm-auth-${ENVIRONMENT}" \
-  "aws_ecs_service.leads:crm-leads-${ENVIRONMENT}" \
-  "aws_ecs_service.email:crm-email-${ENVIRONMENT}" \
-  "aws_ecs_service.whatsapp:crm-whatsapp-${ENVIRONMENT}"; do
+  "aws_ecs_service.leads:crm-leads-${ENVIRONMENT}"; do
   address="${pair%%:*}"
   service_name="${pair#*:}"
   service_status="$(aws_text ecs describe-services \

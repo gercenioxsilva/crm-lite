@@ -54,10 +54,7 @@ resource "aws_security_group" "ecs_tasks" {
 data "aws_ecr_repository" "services" {
   for_each = toset([
     "crm-api-gateway",
-    "crm-auth",
-    "crm-leads",
-    "crm-email",
-    "crm-whatsapp"
+    "crm-leads"
   ])
 
   name = each.key
@@ -100,11 +97,12 @@ resource "aws_ecs_task_definition" "api_gateway" {
         { name = "NODE_ENV", value = var.environment },
         { name = "PORT", value = "3000" },
         { name = "API_GATEWAY_PORT", value = "3000" },
-        { name = "AUTH_BASE_URL", value = "http://crm-auth-${var.environment}.crm.local:3050" },
+        { name = "AUTH_BASE_URL", value = trimsuffix(aws_lambda_function_url.auth.function_url, "/") },
         { name = "LEADS_BASE_URL", value = "http://crm-leads-${var.environment}.crm.local:3020" },
-        { name = "EMAIL_BASE_URL", value = "http://crm-email-${var.environment}.crm.local:3040" },
-        { name = "WHATSAPP_BASE_URL", value = "http://crm-whatsapp-${var.environment}.crm.local:3050" },
-        { name = "AUTH_JWT_SECRET", value = "your-super-secret-jwt-key-here" }
+        { name = "EMAIL_BASE_URL", value = trimsuffix(aws_lambda_function_url.email.function_url, "/") },
+        { name = "WHATSAPP_BASE_URL", value = trimsuffix(aws_lambda_function_url.whatsapp.function_url, "/") },
+        { name = "INTERNAL_API_TOKEN", value = var.internal_api_token },
+        { name = "AUTH_JWT_SECRET", value = var.auth_jwt_secret }
       ]
 
       logConfiguration = {
@@ -120,51 +118,6 @@ resource "aws_ecs_task_definition" "api_gateway" {
 
   tags = {
     Name        = "crm-api-gateway-${var.environment}"
-    Environment = var.environment
-  }
-}
-
-resource "aws_ecs_task_definition" "auth" {
-  family                   = "crm-auth-${var.environment}"
-  network_mode             = "awsvpc"
-  requires_compatibilities = ["FARGATE"]
-  cpu                      = "256"
-  memory                   = "512"
-  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn            = aws_iam_role.ecs_task_role.arn
-
-  container_definitions = jsonencode([
-    {
-      name  = "auth"
-      image = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/crm-auth:${var.image_tag}"
-
-      portMappings = [
-        {
-          containerPort = 3050
-          protocol      = "tcp"
-        }
-      ]
-
-      environment = [
-        { name = "NODE_ENV", value = var.environment },
-        { name = "PORT", value = "3050" },
-        { name = "AUTH_JWT_SECRET", value = "your-super-secret-jwt-key-here" },
-        { name = "AUTH_CLIENTS", value = "frontend:front-secret:leads:read,leads:write,reports:read;gateway:gateway-secret:leads:read,leads:write,api:read" }
-      ]
-
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.ecs.name
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "auth"
-        }
-      }
-    }
-  ])
-
-  tags = {
-    Name        = "crm-auth-${var.environment}"
     Environment = var.environment
   }
 }
@@ -236,28 +189,6 @@ resource "aws_ecs_service" "api_gateway" {
 
   tags = {
     Name        = "crm-api-gateway-${var.environment}"
-    Environment = var.environment
-  }
-}
-
-resource "aws_ecs_service" "auth" {
-  name            = "crm-auth-${var.environment}"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.auth.arn
-  desired_count   = var.environment == "prod" ? 2 : 1
-  launch_type     = "FARGATE"
-
-  network_configuration {
-    security_groups = [aws_security_group.internal_services.id]
-    subnets         = aws_subnet.private[*].id
-  }
-
-  service_registries {
-    registry_arn = aws_service_discovery_service.auth.arn
-  }
-
-  tags = {
-    Name        = "crm-auth-${var.environment}"
     Environment = var.environment
   }
 }

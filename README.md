@@ -13,10 +13,10 @@ O sistema e organizado como monorepo com workspaces npm:
 | `services/landing-react` | Landing page publica para captura de leads |
 | `services/backoffice-react` | Backoffice administrativo do CRM |
 | `services/api-gateway` | Gateway HTTP, autenticacao de rotas e proxy para servicos internos |
-| `services/auth` | Autenticacao simples/JWT para desenvolvimento e operacao inicial |
+| `services/auth` | Autenticacao simples/JWT publicada como Lambda Function URL |
 | `services/leads` | Core do CRM: leads, pipeline, atividades e campos customizados |
-| `services/email` | Envio e rastreio de emails com arquitetura hexagonal, SQS/SES e MongoDB |
-| `services/whatsapp` | Integracao WhatsApp/Meta Business API e mocks locais |
+| `services/email` | Envio e rastreio de emails com Lambda, SQS, SES e MongoDB/DocumentDB |
+| `services/whatsapp` | Integracao WhatsApp/Meta Business API publicada como Lambda Function URL |
 | `terraform` | Infraestrutura AWS atual baseada em ECS/Fargate |
 | `.github/workflows` | CI/CD para build, provisionamento e deploy AWS |
 
@@ -26,13 +26,13 @@ O sistema e organizado como monorepo com workspaces npm:
 graph TB
   landing[Landing React] --> gateway[API Gateway Fastify]
   backoffice[Backoffice React] --> gateway
-  gateway --> auth[Auth Service]
-  gateway --> leads[Leads Service]
-  gateway --> email[Email Service]
-  gateway --> whatsapp[WhatsApp Service]
+  gateway --> auth[Auth Lambda]
+  gateway --> leads[Leads ECS Service]
+  gateway --> email[Email Lambda Function URL]
+  gateway --> whatsapp[WhatsApp Lambda Function URL]
   leads --> postgres[(PostgreSQL/RDS)]
   email --> mongo[(MongoDB/DocumentDB)]
-  email --> sqs[SQS]
+  email --> sqs[SQS Event Source]
   email --> ses[SES]
   whatsapp --> meta[Meta WhatsApp API]
 ```
@@ -53,7 +53,8 @@ O Terraform atual provisiona:
 - VPC com subnets publicas e privadas.
 - NAT Gateway para saida dos servicos privados.
 - Application Load Balancer.
-- ECS Cluster com tasks Fargate.
+- ECS Cluster com tasks Fargate para `api-gateway` e `leads`.
+- Lambda Function URL para `auth`, `email` e `whatsapp`.
 - RDS PostgreSQL para leads.
 - DocumentDB para emails.
 - SQS e SES para email.
@@ -76,11 +77,11 @@ Workflow principal:
 
 Para baixo volume inicial, a arquitetura mais barata deve evoluir para:
 
-- `landing-react` em S3 + CloudFront. **Aplicado nesta branch.**
-- `backoffice-react` em S3 + CloudFront. **Aplicado nesta branch.**
-- `email` como Lambda consumindo SQS e usando SES.
-- `whatsapp` como Lambda para webhooks e envios sob demanda.
-- `auth` substituido por Cognito ou Lambda simples.
+- `landing-react` em S3 + CloudFront. **Aplicado.**
+- `backoffice-react` em S3 + CloudFront. **Aplicado.**
+- `email` como Lambda consumindo SQS e usando SES. **Aplicado.**
+- `whatsapp` como Lambda para webhooks e envios sob demanda. **Aplicado.**
+- `auth` como Lambda simples com JWT. **Aplicado.**
 - `leads` pode migrar para Lambda depois, mas exige cuidado com conexoes PostgreSQL; use RDS Proxy se houver concorrencia.
 - `api-gateway` pode virar AWS API Gateway/HTTP API roteando para Lambdas.
 
@@ -89,10 +90,10 @@ Ordem recomendada de migracao:
 1. Publicar frontends estaticos em S3/CloudFront.
 2. Migrar `email` para Lambda acionada por SQS.
 3. Migrar `whatsapp` para Lambda Function URL ou API Gateway.
-4. Avaliar `auth` com Cognito.
+4. Migrar `auth` para Lambda simples com JWT.
 5. Migrar `leads` somente depois de estabilizar banco, migracoes e conexoes.
 
-Nesta etapa, ECS/Fargate foi mantido para os backends e removido apenas dos frontends estaticos. Nao remova ECS/Fargate dos demais servicos ate que cada servico tenha substituto validado em codigo e publicado com seguranca em `prod`.
+Nesta etapa, ECS/Fargate foi mantido apenas para `api-gateway` e `leads`. `auth`, `email` e `whatsapp` foram migrados para Lambda para reduzir custo de processamento sempre ligado. Nao migre `leads` antes de validar estrategia de conexoes com PostgreSQL.
 
 ## Execucao Local
 
@@ -191,6 +192,15 @@ WHATSAPP_VERIFY_TOKEN=crm-whatsapp-token
 
 Nunca commite `.env` real, tokens, chaves AWS ou outputs sensiveis do Terraform.
 
+Variaveis importantes em AWS:
+
+- `AUTH_JWT_SECRET`: trocar o valor padrao do Terraform antes de producao real.
+- `AUTH_CLIENTS`: clientes OAuth simples usados pelo backoffice/gateway.
+- `internal_api_token`: variavel Terraform sensivel usada como header `x-internal-api-token` entre `api-gateway` e Lambdas internas.
+- `WHATSAPP_ACCESS_TOKEN` e `WHATSAPP_PHONE_NUMBER_ID`: configurar na Lambda `crm-whatsapp-prod` antes de usar Meta WhatsApp real.
+- `WHATSAPP_VERIFY_TOKEN`: token usado na validacao do webhook Meta.
+- `MONGODB_URL`, `MONGODB_DB`, `SQS_QUEUE_URL`: configurados pelo Terraform para a Lambda de email.
+
 ## APIs Principais
 
 Publicas:
@@ -258,6 +268,11 @@ Pre-requisitos:
 ```text
 AWS_ACCESS_KEY_ID
 AWS_SECRET_ACCESS_KEY
+INTERNAL_API_TOKEN
+AUTH_JWT_SECRET
+WHATSAPP_ACCESS_TOKEN
+WHATSAPP_PHONE_NUMBER_ID
+WHATSAPP_VERIFY_TOKEN
 ```
 
 Provisionar infraestrutura:
@@ -288,7 +303,11 @@ Comandos AWS uteis:
 aws ecs list-services --cluster crm-cluster-prod
 aws ecs describe-services --cluster crm-cluster-prod --services crm-api-gateway-prod
 aws logs tail /ecs/crm-prod --follow
+aws lambda get-function --function-name crm-auth-prod
+aws lambda get-function-url-config --function-name crm-whatsapp-prod
 ```
+
+O webhook da Meta deve apontar para a Function URL do WhatsApp com path `/webhook`. Os demais endpoints de `auth`, `email` e `whatsapp` esperam o header interno enviado pelo `api-gateway`.
 
 Executar migracao manual:
 
@@ -307,6 +326,15 @@ CONFIRM_DESTROY_DEV=crm-dev ./scripts/destroy-dev-environment.sh
 
 O script seleciona o workspace Terraform `dev`, importa recursos conhecidos do ambiente, esvazia os buckets estaticos do `dev`, executa `terraform destroy -var="environment=dev"` e remove o workspace `dev` ao final. Nao execute comandos manuais de destroy em `prod`.
 
+Empacotar Lambdas manualmente:
+
+```bash
+npm run build:all
+bash scripts/package-lambda-services.sh
+```
+
+O Terraform espera os pacotes em `.aws/lambda/auth.zip`, `.aws/lambda/email.zip` e `.aws/lambda/whatsapp.zip`. Os workflows fazem esse empacotamento automaticamente antes do `terraform plan`.
+
 ## Checklist De Publicacao
 
 Antes de considerar pronto para AWS:
@@ -316,7 +344,8 @@ Antes de considerar pronto para AWS:
 - Docker Desktop ou CI validando build das imagens.
 - GitHub Secrets configurados.
 - Bucket de estado Terraform `crm-terraform-state-us-east-1` criado ou criavel pelo workflow.
-- ECR repositorios criados pelo workflow.
+- ECR repositorios criados pelo workflow para `api-gateway` e `leads`.
+- Pacotes Lambda gerados pelo workflow para `auth`, `email` e `whatsapp`.
 - SES validado para dominio/remetente em producao.
 - WhatsApp tokens configurados apenas em ambiente seguro.
 - `AUTH_JWT_SECRET` trocado para valor seguro.
@@ -353,9 +382,13 @@ Nesta branch, o projeto foi preparado para novo deploy em `prod` com:
 - Codigo legado de chat/prompt fora dos workspaces removido.
 - `landing-react` e `backoffice-react` publicados como sites estaticos em S3 + CloudFront, com `/api/*` roteado para o ALB.
 - Imagens e servicos ECS/Fargate dos frontends removidos do deploy.
+- `auth`, `email` e `whatsapp` migrados de ECS/Fargate para Lambda Function URL.
+- `email` processa SQS por event source mapping, sem loop permanente em container.
+- Workflow empacota Lambdas antes do Terraform e constroi imagens Docker apenas para `api-gateway` e `leads`.
 
 Pendencia operacional:
 
-- Validar `docker build` de todos os servicos em maquina/CI com Docker daemon ativo.
+- Validar `docker build` de `api-gateway` e `leads` em maquina/CI com Docker daemon ativo.
 - Confirmar secrets AWS e variaveis sensiveis antes de publicar em producao.
-- Migrar `email`, `whatsapp`, `auth` e eventualmente `leads` para Lambda/Cognito em fases futuras.
+- Configurar tokens reais de WhatsApp e segredo JWT seguro antes de abrir uso externo.
+- Avaliar `api-gateway` como AWS HTTP API e `leads` com RDS Proxy em fases futuras.
