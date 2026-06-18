@@ -61,9 +61,39 @@ output "ecr_repositories" {
 output "environment_urls" {
   description = "Application URLs"
   value = {
-    landing_page = "http://${aws_lb.main.dns_name}"
+    landing_page = "https://${aws_cloudfront_distribution.static_site["landing"].domain_name}"
     api_gateway  = "http://${aws_lb.main.dns_name}/api"
-    backoffice   = "http://${aws_lb.main.dns_name}/crm"
+    backoffice   = "https://${aws_cloudfront_distribution.static_site["backoffice"].domain_name}"
     swagger_docs = "http://${aws_lb.main.dns_name}/docs"
   }
+}
+
+output "landing_bucket_name" {
+  description = "S3 bucket for the landing static site"
+  value       = aws_s3_bucket.static_site["landing"].bucket
+}
+
+output "backoffice_bucket_name" {
+  description = "S3 bucket for the backoffice static site"
+  value       = aws_s3_bucket.static_site["backoffice"].bucket
+}
+
+output "landing_cloudfront_distribution_id" {
+  description = "CloudFront distribution ID for landing"
+  value       = aws_cloudfront_distribution.static_site["landing"].id
+}
+
+output "backoffice_cloudfront_distribution_id" {
+  description = "CloudFront distribution ID for backoffice"
+  value       = aws_cloudfront_distribution.static_site["backoffice"].id
+}
+
+output "landing_cloudfront_domain_name" {
+  description = "CloudFront domain name for landing"
+  value       = aws_cloudfront_distribution.static_site["landing"].domain_name
+}
+
+output "backoffice_cloudfront_domain_name" {
+  description = "CloudFront domain name for backoffice"
+  value       = aws_cloudfront_distribution.static_site["backoffice"].domain_name
 }

@@ -1,4 +1,4 @@
-# Email Service Task Definition
+﻿# Email Service Task Definition
 resource "aws_ecs_task_definition" "email" {
   family                   = "crm-email-${var.environment}"
   network_mode             = "awsvpc"
@@ -93,84 +93,6 @@ resource "aws_ecs_task_definition" "whatsapp" {
   }
 }
 
-# Landing Page Task Definition
-resource "aws_ecs_task_definition" "landing" {
-  family                   = "crm-landing-${var.environment}"
-  network_mode             = "awsvpc"
-  requires_compatibilities = ["FARGATE"]
-  cpu                      = "256"
-  memory                   = "512"
-  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn            = aws_iam_role.ecs_task_role.arn
-
-  container_definitions = jsonencode([
-    {
-      name  = "landing"
-      image = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/crm-landing-react:${var.image_tag}"
-
-      portMappings = [
-        {
-          containerPort = 80
-          protocol      = "tcp"
-        }
-      ]
-
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.ecs.name
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "landing"
-        }
-      }
-    }
-  ])
-
-  tags = {
-    Name        = "crm-landing-${var.environment}"
-    Environment = var.environment
-  }
-}
-
-# Backoffice Task Definition
-resource "aws_ecs_task_definition" "backoffice" {
-  family                   = "crm-backoffice-${var.environment}"
-  network_mode             = "awsvpc"
-  requires_compatibilities = ["FARGATE"]
-  cpu                      = "256"
-  memory                   = "512"
-  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn            = aws_iam_role.ecs_task_role.arn
-
-  container_definitions = jsonencode([
-    {
-      name  = "backoffice"
-      image = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/crm-backoffice-react:${var.image_tag}"
-
-      portMappings = [
-        {
-          containerPort = 80
-          protocol      = "tcp"
-        }
-      ]
-
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.ecs.name
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "backoffice"
-        }
-      }
-    }
-  ])
-
-  tags = {
-    Name        = "crm-backoffice-${var.environment}"
-    Environment = var.environment
-  }
-}
-
 # Migration Task Definition
 resource "aws_ecs_task_definition" "migrate" {
   family                   = "crm-migrate-${var.environment}"
@@ -251,58 +173,6 @@ resource "aws_ecs_service" "whatsapp" {
 
   tags = {
     Name        = "crm-whatsapp-${var.environment}"
-    Environment = var.environment
-  }
-}
-
-resource "aws_ecs_service" "landing" {
-  name            = "crm-landing-${var.environment}"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.landing.arn
-  desired_count   = var.environment == "prod" ? 2 : 1
-  launch_type     = "FARGATE"
-
-  network_configuration {
-    security_groups = [aws_security_group.ecs_tasks.id]
-    subnets         = aws_subnet.private[*].id
-  }
-
-  load_balancer {
-    target_group_arn = aws_lb_target_group.landing.arn
-    container_name   = "landing"
-    container_port   = 80
-  }
-
-  depends_on = [aws_lb_listener.main]
-
-  tags = {
-    Name        = "crm-landing-${var.environment}"
-    Environment = var.environment
-  }
-}
-
-resource "aws_ecs_service" "backoffice" {
-  name            = "crm-backoffice-${var.environment}"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.backoffice.arn
-  desired_count   = var.environment == "prod" ? 2 : 1
-  launch_type     = "FARGATE"
-
-  network_configuration {
-    security_groups = [aws_security_group.ecs_tasks.id]
-    subnets         = aws_subnet.private[*].id
-  }
-
-  load_balancer {
-    target_group_arn = aws_lb_target_group.backoffice.arn
-    container_name   = "backoffice"
-    container_port   = 80
-  }
-
-  depends_on = [aws_lb_listener.main]
-
-  tags = {
-    Name        = "crm-backoffice-${var.environment}"
     Environment = var.environment
   }
 }
