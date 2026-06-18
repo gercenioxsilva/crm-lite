@@ -16,6 +16,22 @@ state_has() {
   terraform state show "$1" >/dev/null 2>&1
 }
 
+state_id() {
+  terraform state show "$1" 2>/dev/null | awk -F= '/^id[[:space:]]+=/ { gsub(/[[:space:]]+/, "", $2); print $2; exit }' || true
+}
+
+state_rm_if_id_equals() {
+  local address="$1"
+  local legacy_id="$2"
+  local current_id
+  current_id="$(state_id "$address")"
+
+  if [ "$current_id" = "$legacy_id" ]; then
+    log "remove legacy state $address ($current_id)"
+    terraform state rm "$address"
+  fi
+}
+
 import_if_missing() {
   local address="$1"
   local import_id="${2:-}"
@@ -243,6 +259,14 @@ for pair in \
   fi
 done
 
+state_rm_if_id_equals "aws_db_subnet_group.main" "crm-db-subnet-group-${ENVIRONMENT}"
+state_rm_if_id_equals "aws_db_instance.postgres" "crm-postgres-${ENVIRONMENT}"
+state_rm_if_id_equals "aws_docdb_subnet_group.main" "crm-docdb-subnet-group-${ENVIRONMENT}"
+state_rm_if_id_equals "aws_docdb_cluster.main" "crm-docdb-${ENVIRONMENT}"
+for index in 0 1; do
+  state_rm_if_id_equals "aws_docdb_cluster_instance.main[${index}]" "crm-docdb-${ENVIRONMENT}-${index}"
+done
+
 ecs_log_group="$(aws_text logs describe-log-groups \
   --log-group-name-prefix "/ecs/crm-${ENVIRONMENT}" \
   --query "logGroups[?logGroupName=='/ecs/crm-${ENVIRONMENT}'].logGroupName | [0]")"
@@ -253,16 +277,14 @@ import_if_missing "aws_cloudwatch_log_group.ecs" "$ecs_log_group"
 import_if_missing "aws_cloudwatch_log_group.email" "$email_log_group"
 
 db_subnet_group_name="$(aws_text rds describe-db-subnet-groups \
-  --db-subnet-group-name "crm-db-subnet-group-${ENVIRONMENT}" \
-  --query 'DBSubnetGroups[0].DBSubnetGroupName')"
+  --query "DBSubnetGroups[?starts_with(DBSubnetGroupName, 'crm-db-${ENVIRONMENT}-') && VpcId=='${vpc_id}'].DBSubnetGroupName | [0]")"
 postgres_identifier="$(aws_text rds describe-db-instances \
-  --db-instance-identifier "crm-postgres-${ENVIRONMENT}" \
+  --db-instance-identifier "crm-postgres-${ENVIRONMENT}-app" \
   --query 'DBInstances[0].DBInstanceIdentifier')"
 docdb_subnet_group_name="$(aws_text docdb describe-db-subnet-groups \
-  --db-subnet-group-name "crm-docdb-subnet-group-${ENVIRONMENT}" \
-  --query 'DBSubnetGroups[0].DBSubnetGroupName')"
+  --query "DBSubnetGroups[?starts_with(DBSubnetGroupName, 'crm-docdb-${ENVIRONMENT}-') && VpcId=='${vpc_id}'].DBSubnetGroupName | [0]")"
 docdb_cluster_identifier="$(aws_text docdb describe-db-clusters \
-  --db-cluster-identifier "crm-docdb-${ENVIRONMENT}" \
+  --db-cluster-identifier "crm-docdb-${ENVIRONMENT}-app" \
   --query 'DBClusters[0].DBClusterIdentifier')"
 import_if_missing "aws_db_subnet_group.main" "$db_subnet_group_name"
 import_if_missing "aws_db_instance.postgres" "$postgres_identifier"
@@ -270,7 +292,7 @@ import_if_missing "aws_docdb_subnet_group.main" "$docdb_subnet_group_name"
 import_if_missing "aws_docdb_cluster.main" "$docdb_cluster_identifier"
 
 for index in 0 1; do
-  docdb_instance_id="crm-docdb-${ENVIRONMENT}-${index}"
+  docdb_instance_id="crm-docdb-${ENVIRONMENT}-app-${index}"
   found_docdb_instance="$(aws_text docdb describe-db-instances \
     --db-instance-identifier "$docdb_instance_id" \
     --query 'DBInstances[0].DBInstanceIdentifier')"
