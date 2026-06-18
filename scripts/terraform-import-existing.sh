@@ -3,6 +3,7 @@ set -euo pipefail
 
 ENVIRONMENT="${1:?Usage: terraform-import-existing.sh <environment>}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
+DATABASE_REBUILD_TOKEN="${DATABASE_REBUILD_TOKEN:-${TF_VAR_database_rebuild_token:-mvp1}}"
 
 log() {
   echo "[terraform-import] $*"
@@ -332,7 +333,7 @@ done
 db_subnet_group_name="$(aws_text rds describe-db-subnet-groups \
   --query "DBSubnetGroups[?starts_with(DBSubnetGroupName, 'crm-db-${ENVIRONMENT}-') && VpcId=='${vpc_id}'].DBSubnetGroupName | [0]")"
 postgres_identifier="$(aws_text rds describe-db-instances \
-  --db-instance-identifier "crm-postgres-${ENVIRONMENT}-app" \
+  --db-instance-identifier "crm-postgres-${ENVIRONMENT}-${DATABASE_REBUILD_TOKEN}" \
   --query 'DBInstances[0].DBInstanceIdentifier')"
 docdb_subnet_group_name="$(aws_text docdb describe-db-subnet-groups \
   --query "DBSubnetGroups[?starts_with(DBSubnetGroupName, 'crm-docdb-${ENVIRONMENT}-') && VpcId=='${vpc_id}'].DBSubnetGroupName | [0]")"
