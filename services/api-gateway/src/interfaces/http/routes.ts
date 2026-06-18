@@ -81,7 +81,7 @@ function requireScope(requiredScope: string) {
 }
 
 // Google auth
-async function verifyGoogleIdToken(idToken: string) {
+async function verifyGoogleIdToken(_idToken: string) {
   // Mock implementation - replace with actual Google verification
   return {
     email: 'user@google.com',
@@ -93,30 +93,21 @@ async function verifyGoogleIdToken(idToken: string) {
 
 // Leads client
 async function createLead(input: any, auth?: any) {
-  try {
-    const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/leads`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...tenantHeaders(auth)
-      },
-      body: JSON.stringify(input)
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error creating lead:', error);
-    // Fallback to mock
-    return {
-      id: Math.random().toString(36),
-      ...input,
-      createdAt: new Date().toISOString()
-    };
+  const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/leads`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...tenantHeaders(auth)
+    },
+    body: JSON.stringify(input)
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`Leads service HTTP ${response.status}: ${errorText}`);
   }
+
+  return await response.json();
 }
 
 async function proxyJson(baseUrl: string, path: string, req: any, reply: any) {
@@ -164,37 +155,43 @@ export async function registerRoutes(app: FastifyInstance){
   app.get('/', { schema: { tags: ['meta'], summary: 'Root' } as any }, async () => ({ name: 'Quiz CRM API Gateway' }));
   
   // Public lead creation
-  app.post('/api/public/leads', { schema: { tags: ['public','leads'], summary: 'Create lead from form' } as any }, async (req) => {
+  app.post('/api/public/leads', { schema: { tags: ['public','leads'], summary: 'Create lead from form' } as any }, async (req, reply) => {
     const body = (req.body as any) || {};
-    const lead = await createLead({
-      name: body.name,
-      email: body.email,
-      company: body.company,
-      job_title: body.jobTitle,
-      cpf: body.cpf,
-      phone: body.phone,
-      birth_date: body.birthDate,
-      cep: body.cep,
-      address_line: body.addressLine,
-      number: body.number,
-      complement: body.complement,
-      neighborhood: body.neighborhood,
-      city: body.city,
-      state: body.state,
-      monthly_income: body.monthlyIncome,
-      lead_value: body.leadValue,
-      expected_close_date: body.expectedCloseDate,
-      priority: body.priority || 'medium',
-      terms_accepted: body.termsAccepted,
-      consent_lgpd: body.consentLgpd,
-      source: body.source || 'landing',
-      customFields: body.customFields || {}
-    });
-    return { success: true, lead };
+    try {
+      const lead = await createLead({
+        name: body.name,
+        email: body.email,
+        company: body.company,
+        job_title: body.jobTitle,
+        cpf: body.cpf,
+        phone: body.phone,
+        birthDate: body.birthDate,
+        cep: body.cep,
+        addressLine: body.addressLine,
+        number: body.number,
+        complement: body.complement,
+        neighborhood: body.neighborhood,
+        city: body.city,
+        state: body.state,
+        monthlyIncome: body.monthlyIncome,
+        lead_value: body.leadValue,
+        expected_close_date: body.expectedCloseDate,
+        priority: body.priority || 'medium',
+        termsAccepted: body.termsAccepted,
+        consentLgpd: body.consentLgpd,
+        source: body.source || 'landing',
+        customFields: body.customFields || {}
+      });
+      return { success: true, lead };
+    } catch (error: any) {
+      console.error('Public lead creation failed:', error.message);
+      reply.code(502);
+      return { error: 'Unable to create lead', details: error.message };
+    }
   });
 
   // Get custom fields for public forms
-  app.get('/api/public/custom-fields', { schema: { tags: ['public'], summary: 'Get active custom fields' } as any }, async (req) => {
+  app.get('/api/public/custom-fields', { schema: { tags: ['public'], summary: 'Get active custom fields' } as any }, async () => {
     try {
       const response = await fetch(`${process.env.LEADS_BASE_URL}/custom-fields`, {
         headers: tenantHeaders()
@@ -361,7 +358,7 @@ export async function registerRoutes(app: FastifyInstance){
     app.get('/api/backoffice/leads', {
       preHandler: [requireScope('leads:read')],
       schema: { tags: ['backoffice'], summary: 'List leads', security: [{ bearerAuth: [] }] } as any
-    }, async (req) => {
+    }, async (req, reply: any) => {
       // Fetch real data from leads service
       try {
         const leadsResponse = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/leads`, {
@@ -393,9 +390,10 @@ export async function registerRoutes(app: FastifyInstance){
           next_follow_up: lead.next_follow_up,
           created_at: lead.created_at
         }));
-      } catch (error) {
-        console.error('Error fetching leads:', error);
-        return [];
+      } catch (error: any) {
+        console.error('Error fetching leads:', error.message);
+        reply.code(502);
+        return { error: 'Unable to reach leads service', details: error.message };
       }
     });
 
