@@ -6,10 +6,9 @@ on:
       environment:
         description: 'Environment to deploy'
         required: true
-        default: 'dev'
+        default: 'prod'
         type: choice
         options:
-        - dev
         - prod
       destroy:
         description: 'Destroy infrastructure'
@@ -65,6 +64,11 @@ jobs:
     - name: Terraform Workspace
       working-directory: ./terraform
       run: |
+        if [ "${{ github.event.inputs.environment }}" != "prod" ]; then
+          echo "Only prod can be provisioned from this workflow."
+          exit 1
+        fi
+
         terraform workspace select ${{ github.event.inputs.environment }} || \
         terraform workspace new ${{ github.event.inputs.environment }}
 

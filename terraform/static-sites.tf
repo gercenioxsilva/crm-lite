@@ -80,9 +80,9 @@ data "aws_iam_policy_document" "static_site" {
     resources = ["${each.value.arn}/*"]
 
     condition {
-      test     = "StringEquals"
+      test     = "StringLike"
       variable = "AWS:SourceArn"
-      values   = [aws_cloudfront_distribution.static_site[each.key].arn]
+      values   = ["arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/*"]
     }
   }
 }
@@ -201,6 +201,8 @@ resource "aws_cloudfront_distribution" "static_site" {
   viewer_certificate {
     cloudfront_default_certificate = true
   }
+
+  depends_on = [aws_s3_bucket_policy.static_site]
 
   tags = {
     Name        = "crm-${each.key}-${var.environment}"

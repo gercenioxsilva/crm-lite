@@ -61,10 +61,11 @@ O Terraform atual provisiona:
 - CloudWatch Logs.
 - Service Discovery interno `crm.local`.
 
-Branches de deploy:
+Politica de ambientes AWS:
 
-- `develop`: ambiente `dev`.
-- `main`: ambiente `prod`.
+- `main`: unico ambiente publicado na AWS, usando `prod`.
+- `develop`: branch de trabalho/homologacao de codigo, sem deploy AWS automatico.
+- Ambiente `dev` nao deve ser mantido na AWS nesta fase para reduzir custo.
 
 Workflow principal:
 
@@ -91,7 +92,7 @@ Ordem recomendada de migracao:
 4. Avaliar `auth` com Cognito.
 5. Migrar `leads` somente depois de estabilizar banco, migracoes e conexoes.
 
-Nesta etapa, ECS/Fargate foi mantido para os backends e removido apenas dos frontends estaticos. Nao remova ECS/Fargate dos demais servicos ate que cada servico tenha substituto validado em `develop`.
+Nesta etapa, ECS/Fargate foi mantido para os backends e removido apenas dos frontends estaticos. Nao remova ECS/Fargate dos demais servicos ate que cada servico tenha substituto validado em codigo e publicado com seguranca em `prod`.
 
 ## Execucao Local
 
@@ -263,14 +264,15 @@ Provisionar infraestrutura:
 
 1. Abrir GitHub Actions.
 2. Executar `Setup AWS Infrastructure`.
-3. Selecionar `dev` ou `prod`.
+3. Selecionar `prod`.
 4. Aguardar Terraform finalizar.
 
 Publicar aplicacao:
 
-1. Fazer push para `develop` para ambiente dev.
-2. Fazer push para `main` para ambiente prod.
-3. Acompanhar `Deploy CRM to AWS`.
+1. Fazer merge/push para `main`.
+2. Acompanhar `Deploy CRM to AWS`.
+
+Nesta fase, push para `develop` nao provisiona AWS. Essa decisao reduz custo evitando duplicar RDS, DocumentDB, NAT Gateway, ALB, ECS/Fargate e CloudFront.
 
 Validacoes antes de push:
 
@@ -283,19 +285,27 @@ npm run test:leads
 Comandos AWS uteis:
 
 ```bash
-aws ecs list-services --cluster crm-cluster-dev
-aws ecs describe-services --cluster crm-cluster-dev --services crm-api-gateway-dev
-aws logs tail /ecs/crm-dev --follow
+aws ecs list-services --cluster crm-cluster-prod
+aws ecs describe-services --cluster crm-cluster-prod --services crm-api-gateway-prod
+aws logs tail /ecs/crm-prod --follow
 ```
 
 Executar migracao manual:
 
 ```bash
 aws ecs run-task \
-  --cluster crm-cluster-dev \
-  --task-definition crm-migrate-dev \
+  --cluster crm-cluster-prod \
+  --task-definition crm-migrate-prod \
   --launch-type FARGATE
 ```
+
+Remover ambiente `dev` da AWS:
+
+```bash
+CONFIRM_DESTROY_DEV=crm-dev ./scripts/destroy-dev-environment.sh
+```
+
+O script seleciona o workspace Terraform `dev`, importa recursos conhecidos do ambiente, esvazia os buckets estaticos do `dev`, executa `terraform destroy -var="environment=dev"` e remove o workspace `dev` ao final. Nao execute comandos manuais de destroy em `prod`.
 
 ## Checklist De Publicacao
 
@@ -322,7 +332,8 @@ Antes de considerar pronto para AWS:
 
 ## Regras De Manutencao
 
-- Trabalhe em `develop` para homologacao.
+- Trabalhe em `develop` para evolucao de codigo sem deploy AWS automatico.
+- Publique AWS apenas por `main`/`prod` enquanto a reducao de custo estiver ativa.
 - Leia o codigo antes de alterar comportamento.
 - Preserve alteracoes locais do usuario.
 - Mantenha os padroes existentes de cada servico.
@@ -333,7 +344,7 @@ Antes de considerar pronto para AWS:
 
 ## Status Atual Da Preparacao AWS
 
-Nesta branch, o projeto foi preparado para novo deploy em `develop` com:
+Nesta branch, o projeto foi preparado para novo deploy em `prod` com:
 
 - Build completo do monorepo validado.
 - Testes de `leads` alinhados com a API real.
