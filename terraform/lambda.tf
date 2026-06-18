@@ -97,6 +97,7 @@ resource "aws_lambda_function" "auth" {
   filename      = "${local.lambda_package_dir}/auth.zip"
   timeout       = 15
   memory_size   = 256
+  publish       = true
 
   source_code_hash = try(filebase64sha256("${local.lambda_package_dir}/auth.zip"), null)
 
@@ -149,6 +150,7 @@ resource "aws_lambda_function" "email" {
   filename      = "${local.lambda_package_dir}/email.zip"
   timeout       = 60
   memory_size   = 512
+  publish       = true
 
   source_code_hash = try(filebase64sha256("${local.lambda_package_dir}/email.zip"), null)
 
@@ -208,6 +210,7 @@ resource "aws_lambda_function" "whatsapp" {
   filename      = "${local.lambda_package_dir}/whatsapp.zip"
   timeout       = 30
   memory_size   = 512
+  publish       = true
 
   source_code_hash = try(filebase64sha256("${local.lambda_package_dir}/whatsapp.zip"), null)
 
