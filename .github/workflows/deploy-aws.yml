@@ -121,6 +121,9 @@ jobs:
         export TF_VAR_whatsapp_access_token="${WHATSAPP_ACCESS_TOKEN_SECRET:-}"
         export TF_VAR_whatsapp_phone_number_id="${WHATSAPP_PHONE_NUMBER_ID_SECRET:-}"
         export TF_VAR_whatsapp_verify_token="${WHATSAPP_VERIFY_TOKEN_SECRET:-quiz-whatsapp-token}"
+        # RESET_SCHEMA=true drops all tables before migrations for a clean slate.
+        # Set back to false (or remove this line) once the DB is stable and has real data.
+        export TF_VAR_reset_schema="true"
 
         terraform init
         terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT
