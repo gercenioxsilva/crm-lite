@@ -19,9 +19,11 @@ lead_email="demo-${GITHUB_RUN_ID:-local}-$(date +%s)@example.com"
 
 echo "Validating public lead creation through ${base_url}/api/public/leads"
 
-# Retenta ate 6x (60s) para tolerar lag de DNS do ECS Service Discovery
-max_create_attempts=6
-create_interval=10
+# Retenta ate 12x (180s) para tolerar lag de DNS do ECS Service Discovery.
+# O healthcheck do ECS (startPeriod=30s + interval=30s) pode atrasar o
+# registro do IP no Cloud Map ate ~70s apos o container iniciar.
+max_create_attempts=12
+create_interval=15
 lead_created=false
 
 for attempt in $(seq 1 $max_create_attempts); do
@@ -58,8 +60,8 @@ fi
 
 echo "Validating backoffice lead listing with mock demo token"
 
-max_list_attempts=6
-list_interval=5
+max_list_attempts=8
+list_interval=10
 lead_found=false
 
 for attempt in $(seq 1 $max_list_attempts); do

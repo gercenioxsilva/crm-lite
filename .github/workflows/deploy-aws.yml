@@ -231,7 +231,12 @@ jobs:
       env:
         WAIT_TIMEOUT_SECONDS: 1800
         WAIT_INTERVAL_SECONDS: 30
-      run: bash scripts/wait-ecs-services.sh api-gateway leads
+      run: |
+        # Give ECS 30s to register the new deployment before polling rolloutState.
+        # Without this, wait-ecs-services.sh may see the previous COMPLETED deployment
+        # and return immediately before the new rolling deploy has started.
+        sleep 30
+        bash scripts/wait-ecs-services.sh api-gateway leads
 
     - name: Validate demo MVP flow
       if: github.ref == 'refs/heads/main'

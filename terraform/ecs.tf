@@ -156,7 +156,7 @@ resource "aws_ecs_task_definition" "leads" {
         interval    = 30
         timeout     = 5
         retries     = 3
-        startPeriod = 60
+        startPeriod = 30
       }
 
       logConfiguration = {
