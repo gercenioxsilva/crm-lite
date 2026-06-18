@@ -395,6 +395,8 @@ Antes de considerar pronto para AWS:
 - Lambda Function URL CORS: usar `allow_methods = ["*"]`; `OPTIONS` excede a validacao da API de Function URL.
 - Lambda env vars: nao configurar `AWS_REGION`; ela e reservada pelo runtime Lambda.
 - Lambda consumindo SQS: `visibility_timeout_seconds` da fila deve ser maior ou igual ao `timeout` da Lambda. Para `email`, a Lambda usa 60s e a fila `crm-email-queue-prod` usa 120s.
+- ECS deploy: nao use apenas `aws ecs wait services-stable` sem diagnostico. O workflow usa `scripts/wait-ecs-services.sh` com timeout maior, eventos do servico e detalhes de tasks paradas.
+- Migracoes: o workflow usa `scripts/run-leads-migrations-task.sh`, aguarda a task Fargate terminar e falha se o container `leads` retornar exit code diferente de `0`.
 
 ## Regras De Manutencao
 
@@ -453,6 +455,7 @@ Nesta branch, o projeto foi preparado para novo deploy em `prod` com:
 - `auth`, `email` e `whatsapp` migrados de ECS/Fargate para Lambda Function URL.
 - `auth` conectado ao PostgreSQL para usuarios SaaS e emissao de JWT com tenant.
 - Estrutura SaaS MVP adicionada com `tenants`, `users`, `tenant_memberships` e `tenant_id` em dados operacionais.
+- ECS/Fargate reduzido para uma task por servico em `prod` nesta fase de baixo volume, com circuit breaker e rollback habilitados.
 - `email` processa SQS por event source mapping, sem loop permanente em container.
 - Workflow empacota Lambdas antes do Terraform e constroi imagens Docker apenas para `api-gateway` e `leads`.
 
