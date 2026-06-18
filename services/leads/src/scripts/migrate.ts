@@ -12,9 +12,13 @@ if (process.env.DATABASE_URL) {
 const connectionTimeoutMillis = parseInt(process.env.DB_CONNECT_TIMEOUT_MS || '10000', 10);
 const dbConnectMaxRetries = parseInt(process.env.DB_CONNECT_MAX_RETRIES || '30', 10);
 const dbConnectRetryDelayMs = parseInt(process.env.DB_CONNECT_RETRY_DELAY_MS || '2000', 10);
+const pgSslMode = (process.env.PGSSLMODE || '').toLowerCase();
+const ssl = pgSslMode === 'require'
+  ? { rejectUnauthorized: false }
+  : undefined;
 
 const pool = process.env.DATABASE_URL
-  ? new Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis })
+  ? new Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis, ssl })
   : new Pool({
       host: process.env.POSTGRES_HOST || 'db',
       port: parseInt(process.env.POSTGRES_PORT || '5432'),
@@ -22,6 +26,7 @@ const pool = process.env.DATABASE_URL
       user: process.env.POSTGRES_USER || 'quiz',
       password: process.env.POSTGRES_PASSWORD || 'quiz',
       connectionTimeoutMillis,
+      ssl,
     });
 
 const migrations = [

@@ -109,6 +109,7 @@ resource "aws_lambda_function" "auth" {
       INTERNAL_API_TOKEN = var.internal_api_token
       DEFAULT_TENANT_ID  = "00000000-0000-0000-0000-000000000001"
       DATABASE_URL       = "postgres://${aws_db_instance.postgres.username}:${aws_db_instance.postgres.password}@${aws_db_instance.postgres.endpoint}/${aws_db_instance.postgres.db_name}"
+      PGSSLMODE          = "require"
     }
   }
 

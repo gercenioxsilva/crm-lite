@@ -29,13 +29,18 @@ interface LoginResponse {
 }
 
 const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID || '00000000-0000-0000-0000-000000000001';
+const pgSslMode = (process.env.PGSSLMODE || '').toLowerCase();
+const ssl = pgSslMode === 'require'
+  ? { rejectUnauthorized: false }
+  : undefined;
 
 const pool = process.env.DATABASE_URL
   ? new Pool({
       connectionString: process.env.DATABASE_URL,
       connectionTimeoutMillis: 5000,
       idleTimeoutMillis: 30000,
-      max: 5
+      max: 5,
+      ssl
     })
   : null;
 
