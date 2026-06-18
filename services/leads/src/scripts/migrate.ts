@@ -20,6 +20,7 @@ const migrations = [
   '0005_pipefy_crm_complete.sql',
   '0008_custom_fields_simple.sql',
   '0009_saas_mvp.sql',
+  '0010_document_field.sql',
 ];
 
 async function waitForDatabase(maxRetries = 30, delay = 2000) {
