@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
 const pool = process.env.DATABASE_URL 
@@ -34,19 +34,24 @@ async function runMigrations() {
     
     await waitForDatabase();
     
+    const migrationsDir = existsSync('/app/db/migrations')
+      ? '/app/db/migrations'
+      : join(process.cwd(), 'db', 'migrations');
+
     const migrations = [
       '0001_init.sql',
       '0002_crm_struct.sql', 
       '0003_sample_data.sql',
       '0004_crm_enhancements.sql',
       '0005_pipefy_crm_complete.sql',
-      '0008_custom_fields_simple.sql'
+      '0008_custom_fields_simple.sql',
+      '0009_saas_mvp.sql'
     ];
 
     for (const migration of migrations) {
       console.log(`Running migration: ${migration}`);
       try {
-        const sql = readFileSync(join('/app/db/migrations', migration), 'utf8');
+        const sql = readFileSync(join(migrationsDir, migration), 'utf8');
         await pool.query(sql);
         console.log(`✓ ${migration} completed`);
       } catch (migrationError: any) {

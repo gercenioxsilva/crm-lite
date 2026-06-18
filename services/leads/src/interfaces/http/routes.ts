@@ -1,6 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import { Pool } from 'pg';
 
+const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID || '00000000-0000-0000-0000-000000000001';
+
 // Use DATABASE_URL if available, otherwise use individual env vars
 const pool = process.env.DATABASE_URL 
   ? new Pool({
@@ -20,6 +22,12 @@ const pool = process.env.DATABASE_URL
       max: 20
     });
 
+function tenantIdFromRequest(req: any, required = true): string {
+  const tenantId = req.headers['x-tenant-id'] || req.headers['X-Tenant-Id'];
+  if (typeof tenantId === 'string' && tenantId.trim()) return tenantId;
+  return DEFAULT_TENANT_ID;
+}
+
 export async function registerRoutes(app: FastifyInstance) {
   app.get('/health', async () => {
     try {
@@ -34,14 +42,15 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post('/leads', async (req, reply) => {
     try {
       const body = req.body as any;
+      const tenantId = tenantIdFromRequest(req, false);
       
       const query = `
         INSERT INTO leads (
           name, email, phone, cpf, birth_date, cep, address_line, number, 
           complement, neighborhood, city, state, monthly_income, source, 
-          terms_accepted, consent_lgpd, status, score, temperature
+          terms_accepted, consent_lgpd, status, score, temperature, tenant_id
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
         ) RETURNING *
       `;
       
@@ -64,7 +73,8 @@ export async function registerRoutes(app: FastifyInstance) {
         body.consentLgpd || false,
         'new',
         50, // default score
-        'cold' // default temperature
+        'cold', // default temperature
+        tenantId
       ];
 
       const result = await pool.query(query, values);
@@ -73,12 +83,17 @@ export async function registerRoutes(app: FastifyInstance) {
       // Add to default pipeline
       const pipelineQuery = `
         INSERT INTO lead_pipeline (lead_id, pipeline_id, current_stage_id)
-        SELECT $1, '550e8400-e29b-41d4-a716-446655440000', '550e8400-e29b-41d4-a716-446655440001'
-        WHERE NOT EXISTS (
+        SELECT $1, p.id, s.id
+        FROM pipelines p
+        JOIN stages s ON s.pipeline_id = p.id AND s.order_no = 1 AND s.tenant_id = p.tenant_id
+        WHERE p.tenant_id = $2 AND p.is_active = true
+        AND NOT EXISTS (
           SELECT 1 FROM lead_pipeline WHERE lead_id = $1
         )
+        ORDER BY p.created_at
+        LIMIT 1
       `;
-      await pool.query(pipelineQuery, [lead.id]);
+      await pool.query(pipelineQuery, [lead.id, tenantId]);
 
       // Save custom field values
       if (body.customFields && typeof body.customFields === 'object') {
@@ -88,11 +103,11 @@ export async function registerRoutes(app: FastifyInstance) {
               INSERT INTO lead_custom_values (lead_id, custom_field_id, value)
               SELECT $1, cf.id, $2
               FROM custom_fields cf
-              WHERE cf.name = $3 AND cf.is_active = true
+              WHERE cf.name = $3 AND cf.tenant_id = $4 AND cf.is_active = true
               ON CONFLICT (lead_id, custom_field_id) 
               DO UPDATE SET value = $2, updated_at = now()
             `;
-            await pool.query(customFieldQuery, [lead.id, String(fieldValue), fieldName]);
+            await pool.query(customFieldQuery, [lead.id, String(fieldValue), fieldName, tenantId]);
           }
         }
       }
@@ -123,6 +138,12 @@ export async function registerRoutes(app: FastifyInstance) {
   // Get all leads (public for development)
   app.get('/leads', async (req, reply) => {
     try {
+      const tenantId = tenantIdFromRequest(req);
+      if (!tenantId) {
+        reply.code(400);
+        return { error: 'Tenant header is required' };
+      }
+
       const query = `
         SELECT 
           l.*,
@@ -132,11 +153,12 @@ export async function registerRoutes(app: FastifyInstance) {
         LEFT JOIN lead_pipeline lp ON l.id = lp.lead_id
         LEFT JOIN stages s ON lp.current_stage_id = s.id
         LEFT JOIN pipelines p ON lp.pipeline_id = p.id
+        WHERE l.tenant_id = $1
         ORDER BY l.created_at DESC
         LIMIT 100
       `;
       
-      const result = await pool.query(query);
+      const result = await pool.query(query, [tenantId]);
       return result.rows;
     } catch (error: any) {
       app.log.error(error);
@@ -148,6 +170,12 @@ export async function registerRoutes(app: FastifyInstance) {
   // Get all activities (for backoffice)
   app.get('/activities', async (req, reply) => {
     try {
+      const tenantId = tenantIdFromRequest(req);
+      if (!tenantId) {
+        reply.code(400);
+        return { error: 'Tenant header is required' };
+      }
+
       const query = `
         SELECT 
           a.*,
@@ -155,11 +183,12 @@ export async function registerRoutes(app: FastifyInstance) {
           l.email as lead_email
         FROM activities a
         LEFT JOIN leads l ON a.lead_id = l.id
+        WHERE a.tenant_id = $1
         ORDER BY a.created_at DESC
         LIMIT 100
       `;
       
-      const result = await pool.query(query);
+      const result = await pool.query(query, [tenantId]);
       return result.rows;
     } catch (error: any) {
       app.log.error(error);
@@ -172,6 +201,11 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get('/leads/:id', async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
+      const tenantId = tenantIdFromRequest(req);
+      if (!tenantId) {
+        reply.code(400);
+        return { error: 'Tenant header is required' };
+      }
       
       const query = `
         SELECT 
@@ -182,10 +216,10 @@ export async function registerRoutes(app: FastifyInstance) {
         LEFT JOIN lead_pipeline lp ON l.id = lp.lead_id
         LEFT JOIN stages s ON lp.current_stage_id = s.id
         LEFT JOIN pipelines p ON lp.pipeline_id = p.id
-        WHERE l.id = $1
+        WHERE l.id = $1 AND l.tenant_id = $2
       `;
       
-      const result = await pool.query(query, [id]);
+      const result = await pool.query(query, [id, tenantId]);
       
       if (result.rows.length === 0) {
         reply.code(404);
@@ -205,6 +239,11 @@ export async function registerRoutes(app: FastifyInstance) {
     try {
       const { id } = req.params as { id: string };
       const body = req.body as any;
+      const tenantId = tenantIdFromRequest(req);
+      if (!tenantId) {
+        reply.code(400);
+        return { error: 'Tenant header is required' };
+      }
       
       const updateFields = [];
       const values = [];
@@ -232,11 +271,12 @@ export async function registerRoutes(app: FastifyInstance) {
       
       updateFields.push(`updated_at = now()`);
       values.push(id);
+      values.push(tenantId);
       
       const query = `
         UPDATE leads 
         SET ${updateFields.join(', ')}
-        WHERE id = $${paramCount}
+        WHERE id = $${paramCount} AND tenant_id = $${paramCount + 1}
         RETURNING *
       `;
       
@@ -259,14 +299,19 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get('/pipelines/:id/stages', async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
+      const tenantId = tenantIdFromRequest(req);
+      if (!tenantId) {
+        reply.code(400);
+        return { error: 'Tenant header is required' };
+      }
       
       const query = `
         SELECT * FROM stages 
-        WHERE pipeline_id = $1 
+        WHERE pipeline_id = $1 AND tenant_id = $2
         ORDER BY order_no
       `;
       
-      const result = await pool.query(query, [id]);
+      const result = await pool.query(query, [id, tenantId]);
       return result.rows;
     } catch (error: any) {
       app.log.error(error);
@@ -278,13 +323,19 @@ export async function registerRoutes(app: FastifyInstance) {
   // Get all pipelines
   app.get('/pipelines', async (req, reply) => {
     try {
+      const tenantId = tenantIdFromRequest(req);
+      if (!tenantId) {
+        reply.code(400);
+        return { error: 'Tenant header is required' };
+      }
+
       const query = `
         SELECT * FROM pipelines 
-        WHERE is_active = true
+        WHERE tenant_id = $1 AND is_active = true
         ORDER BY created_at
       `;
       
-      const result = await pool.query(query);
+      const result = await pool.query(query, [tenantId]);
       return result.rows;
     } catch (error: any) {
       app.log.error(error);
@@ -297,6 +348,11 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get('/leads/:id/activities', async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
+      const tenantId = tenantIdFromRequest(req);
+      if (!tenantId) {
+        reply.code(400);
+        return { error: 'Tenant header is required' };
+      }
       
       const query = `
         SELECT 
@@ -304,11 +360,11 @@ export async function registerRoutes(app: FastifyInstance) {
           l.name as lead_name
         FROM activities a
         LEFT JOIN leads l ON a.lead_id = l.id
-        WHERE a.lead_id = $1 
+        WHERE a.lead_id = $1 AND a.tenant_id = $2
         ORDER BY a.created_at DESC
       `;
       
-      const result = await pool.query(query, [id]);
+      const result = await pool.query(query, [id, tenantId]);
       return result.rows;
     } catch (error: any) {
       app.log.error(error);
@@ -322,13 +378,24 @@ export async function registerRoutes(app: FastifyInstance) {
     try {
       const { id } = req.params as { id: string };
       const body = req.body as any;
+      const tenantId = tenantIdFromRequest(req);
+      if (!tenantId) {
+        reply.code(400);
+        return { error: 'Tenant header is required' };
+      }
+
+      const leadExists = await pool.query('SELECT 1 FROM leads WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
+      if (leadExists.rows.length === 0) {
+        reply.code(404);
+        return { error: 'Lead not found' };
+      }
       
       const query = `
         INSERT INTO activities (
           lead_id, type, subject, description, outcome, 
-          duration_minutes, follow_up_required, next_action, created_by
+          duration_minutes, follow_up_required, next_action, created_by, tenant_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING *
       `;
       
@@ -341,7 +408,8 @@ export async function registerRoutes(app: FastifyInstance) {
         body.duration_minutes || null,
         body.follow_up_required || false,
         body.next_action || null,
-        body.created_by || 'system'
+        body.created_by || 'system',
+        tenantId
       ];
       
       const result = await pool.query(query, values);
@@ -358,13 +426,24 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post('/activities', async (req, reply) => {
     try {
       const body = req.body as any;
+      const tenantId = tenantIdFromRequest(req);
+      if (!tenantId) {
+        reply.code(400);
+        return { error: 'Tenant header is required' };
+      }
+
+      const leadExists = await pool.query('SELECT 1 FROM leads WHERE id = $1 AND tenant_id = $2', [body.lead_id, tenantId]);
+      if (leadExists.rows.length === 0) {
+        reply.code(404);
+        return { error: 'Lead not found' };
+      }
       
       const query = `
         INSERT INTO activities (
           lead_id, type, subject, description, outcome, 
-          duration_minutes, follow_up_required, next_action, created_by
+          duration_minutes, follow_up_required, next_action, created_by, tenant_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING *
       `;
       
@@ -377,7 +456,8 @@ export async function registerRoutes(app: FastifyInstance) {
         body.duration_minutes || null,
         body.follow_up_required || false,
         body.next_action || null,
-        body.created_by || 'system'
+        body.created_by || 'system',
+        tenantId
       ];
       
       const result = await pool.query(query, values);
@@ -393,6 +473,12 @@ export async function registerRoutes(app: FastifyInstance) {
   // Get pipeline board data for backoffice
   app.get('/pipeline', async (req, reply) => {
     try {
+      const tenantId = tenantIdFromRequest(req);
+      if (!tenantId) {
+        reply.code(400);
+        return { error: 'Tenant header is required' };
+      }
+
       const query = `
         SELECT 
           s.id,
@@ -419,13 +505,14 @@ export async function registerRoutes(app: FastifyInstance) {
           ) as leads
         FROM stages s
         LEFT JOIN lead_pipeline lp ON s.id = lp.current_stage_id
-        LEFT JOIN leads l ON lp.lead_id = l.id
+        LEFT JOIN leads l ON lp.lead_id = l.id AND l.tenant_id = $1
         WHERE s.pipeline_id = '550e8400-e29b-41d4-a716-446655440000'
+          AND s.tenant_id = $1
         GROUP BY s.id, s.name, s.order_no, s.stage_color
         ORDER BY s.order_no
       `;
       
-      const result = await pool.query(query);
+      const result = await pool.query(query, [tenantId]);
       return result.rows;
     } catch (error: any) {
       app.log.error(error);
@@ -439,15 +526,28 @@ export async function registerRoutes(app: FastifyInstance) {
     try {
       const { id } = req.params as { id: string };
       const { stageId } = req.body as any;
+      const tenantId = tenantIdFromRequest(req);
+      if (!tenantId) {
+        reply.code(400);
+        return { error: 'Tenant header is required' };
+      }
       
       const query = `
         UPDATE lead_pipeline 
         SET current_stage_id = $1, updated_at = now()
         WHERE lead_id = $2
+          AND EXISTS (
+            SELECT 1 FROM leads l
+            WHERE l.id = lead_pipeline.lead_id AND l.tenant_id = $3
+          )
+          AND EXISTS (
+            SELECT 1 FROM stages s
+            WHERE s.id = $1 AND s.tenant_id = $3
+          )
         RETURNING *
       `;
       
-      const result = await pool.query(query, [stageId, id]);
+      const result = await pool.query(query, [stageId, id, tenantId]);
       
       if (result.rows.length === 0) {
         reply.code(404);
@@ -465,14 +565,15 @@ export async function registerRoutes(app: FastifyInstance) {
   // Custom Fields Management
   app.get('/custom-fields', async (req, reply) => {
     try {
+      const tenantId = tenantIdFromRequest(req, false);
       console.log('Fetching custom fields...');
       const result = await pool.query(`
         SELECT id, name, label, field_type, is_required, placeholder, 
                help_text, options, validation_rules, display_order, is_active
         FROM custom_fields 
-        WHERE is_active = true 
+        WHERE tenant_id = $1 AND is_active = true
         ORDER BY display_order, created_at
-      `);
+      `, [tenantId]);
       console.log('Custom fields result:', result.rows.length, 'fields found');
       return result.rows;
     } catch (error: any) {
@@ -486,13 +587,18 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post('/custom-fields', async (req, reply) => {
     try {
       const body = req.body as any;
+      const tenantId = tenantIdFromRequest(req);
+      if (!tenantId) {
+        reply.code(400);
+        return { error: 'Tenant header is required' };
+      }
       
       const query = `
         INSERT INTO custom_fields (
           name, label, field_type, is_required, placeholder, 
-          help_text, options, validation_rules, display_order
+          help_text, options, validation_rules, display_order, tenant_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING *
       `;
       
@@ -505,7 +611,8 @@ export async function registerRoutes(app: FastifyInstance) {
         body.help_text || null,
         body.options || null,
         body.validation_rules || null,
-        body.display_order || 0
+        body.display_order || 0,
+        tenantId
       ];
       
       const result = await pool.query(query, values);
@@ -522,13 +629,18 @@ export async function registerRoutes(app: FastifyInstance) {
     try {
       const { id } = req.params as { id: string };
       const body = req.body as any;
+      const tenantId = tenantIdFromRequest(req);
+      if (!tenantId) {
+        reply.code(400);
+        return { error: 'Tenant header is required' };
+      }
       
       const query = `
         UPDATE custom_fields 
         SET label = $1, field_type = $2, is_required = $3, 
             placeholder = $4, help_text = $5, options = $6, 
             validation_rules = $7, display_order = $8, updated_at = now()
-        WHERE id = $9
+        WHERE id = $9 AND tenant_id = $10
         RETURNING *
       `;
       
@@ -541,7 +653,8 @@ export async function registerRoutes(app: FastifyInstance) {
         body.options,
         body.validation_rules,
         body.display_order,
-        id
+        id,
+        tenantId
       ];
       
       const result = await pool.query(query, values);
@@ -562,15 +675,20 @@ export async function registerRoutes(app: FastifyInstance) {
   app.delete('/custom-fields/:id', async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
+      const tenantId = tenantIdFromRequest(req);
+      if (!tenantId) {
+        reply.code(400);
+        return { error: 'Tenant header is required' };
+      }
       
       const query = `
         UPDATE custom_fields 
         SET is_active = false, updated_at = now()
-        WHERE id = $1
+        WHERE id = $1 AND tenant_id = $2
         RETURNING *
       `;
       
-      const result = await pool.query(query, [id]);
+      const result = await pool.query(query, [id, tenantId]);
       
       if (result.rows.length === 0) {
         reply.code(404);
@@ -589,6 +707,11 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get('/leads/:id/custom-values', async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
+      const tenantId = tenantIdFromRequest(req);
+      if (!tenantId) {
+        reply.code(400);
+        return { error: 'Tenant header is required' };
+      }
       
       const query = `
         SELECT 
@@ -598,11 +721,11 @@ export async function registerRoutes(app: FastifyInstance) {
           lcv.value
         FROM custom_fields cf
         LEFT JOIN lead_custom_values lcv ON cf.id = lcv.custom_field_id AND lcv.lead_id = $1
-        WHERE cf.is_active = true
+        WHERE cf.tenant_id = $2 AND cf.is_active = true
         ORDER BY cf.display_order
       `;
       
-      const result = await pool.query(query, [id]);
+      const result = await pool.query(query, [id, tenantId]);
       return result.rows;
     } catch (error: any) {
       app.log.error(error);

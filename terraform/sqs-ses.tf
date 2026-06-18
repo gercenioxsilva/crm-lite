@@ -1,10 +1,11 @@
 # SQS Queue for Email Processing
 resource "aws_sqs_queue" "email_queue" {
-  name                      = "crm-email-queue-${var.environment}"
-  delay_seconds             = 0
-  max_message_size          = 262144
-  message_retention_seconds = 1209600
-  receive_wait_time_seconds = 10
+  name                       = "crm-email-queue-${var.environment}"
+  delay_seconds              = 0
+  max_message_size           = 262144
+  message_retention_seconds  = 1209600
+  visibility_timeout_seconds = 120
+  receive_wait_time_seconds  = 10
 
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.email_dlq.arn

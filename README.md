@@ -20,6 +20,27 @@ O sistema e organizado como monorepo com workspaces npm:
 | `terraform` | Infraestrutura AWS atual baseada em ECS/Fargate |
 | `.github/workflows` | CI/CD para build, provisionamento e deploy AWS |
 
+## SaaS MVP
+
+O sistema esta sendo preparado para venda como SaaS com o minimo necessario para manter o MVP em producao:
+
+- Tenant padrao `cliente-inicial` criado no PostgreSQL.
+- Usuarios legados importados para tabela `users`:
+  - `admin@quiz.com` / `admin123`.
+  - `user@quiz.com` / `user123`.
+- Auth em Lambda valida usuarios pelo PostgreSQL e emite JWT com `tenantId`.
+- API Gateway propaga `x-tenant-id` para o servico de leads.
+- Leads, atividades, pipelines, etapas e campos customizados passam a ser filtrados por `tenant_id`.
+- Rotas publicas da landing usam o tenant padrao enquanto houver apenas um cliente.
+
+Limites assumidos nesta fase:
+
+- Nao ha billing, assinatura, trial, invoice ou cobranca automatica.
+- Nao ha painel de criacao de tenants; novos clientes devem ser criados por migracao/script operacional.
+- Nao ha Cognito nesta fase; a autenticacao continua simples para reduzir complexidade.
+- O escopo multi-tenant inicial e isolamento logico no banco compartilhado.
+- Antes de vender para multiplos clientes simultaneos, revisar LGPD, auditoria, backup/restore por tenant, termos de uso, trilha de alteracoes e controles de suporte.
+
 ## Arquitetura Atual
 
 ```mermaid
@@ -30,6 +51,7 @@ graph TB
   gateway --> leads[Leads ECS Service]
   gateway --> email[Email Lambda Function URL]
   gateway --> whatsapp[WhatsApp Lambda Function URL]
+  auth --> postgres[(PostgreSQL/RDS)]
   leads --> postgres[(PostgreSQL/RDS)]
   email --> mongo[(MongoDB/DocumentDB)]
   email --> sqs[SQS Event Source]
@@ -200,6 +222,7 @@ Variaveis importantes em AWS:
 - `WHATSAPP_ACCESS_TOKEN` e `WHATSAPP_PHONE_NUMBER_ID`: configurar na Lambda `crm-whatsapp-prod` antes de usar Meta WhatsApp real.
 - `WHATSAPP_VERIFY_TOKEN`: token usado na validacao do webhook Meta.
 - `MONGODB_URL`, `MONGODB_DB`, `SQS_QUEUE_URL`: configurados pelo Terraform para a Lambda de email.
+- `DEFAULT_TENANT_ID`: tenant usado por rotas publicas e tokens client credentials no MVP.
 
 ## APIs Principais
 
@@ -242,6 +265,9 @@ WhatsApp:
 
 Tabelas centrais do PostgreSQL:
 
+- `tenants`: clientes/contas SaaS.
+- `users`: usuarios autenticaveis, vinculados a um tenant.
+- `tenant_memberships`: vinculo usuario-tenant para evolucao de permissoes.
 - `leads`: cadastro, origem, status, score, temperatura, prioridade, dados comerciais e contato.
 - `activities`: historico de interacoes, ligacoes, emails, reunioes, tarefas e notas.
 - `pipelines`: funis ativos.
@@ -249,6 +275,8 @@ Tabelas centrais do PostgreSQL:
 - `lead_pipeline`: posicao atual do lead no pipeline.
 - `custom_fields`: campos dinamicos do formulario.
 - `lead_custom_values`: valores dinamicos por lead.
+
+No MVP SaaS, as tabelas operacionais usam `tenant_id` para isolamento logico. Toda chamada interna do backoffice para `leads` deve carregar `x-tenant-id`; o `api-gateway` deriva esse valor do JWT.
 
 Email usa MongoDB/DocumentDB para rastreio de mensagens:
 
@@ -366,6 +394,7 @@ Antes de considerar pronto para AWS:
 - Dockerfile com `npm install --omit=dev` antes do build TypeScript: instalar dependencias completas, buildar e depois usar `npm prune --omit=dev`.
 - Lambda Function URL CORS: usar `allow_methods = ["*"]`; `OPTIONS` excede a validacao da API de Function URL.
 - Lambda env vars: nao configurar `AWS_REGION`; ela e reservada pelo runtime Lambda.
+- Lambda consumindo SQS: `visibility_timeout_seconds` da fila deve ser maior ou igual ao `timeout` da Lambda. Para `email`, a Lambda usa 60s e a fila `crm-email-queue-prod` usa 120s.
 
 ## Regras De Manutencao
 
@@ -379,6 +408,37 @@ Antes de considerar pronto para AWS:
 - Para mudancas AWS, valide Dockerfile, workflow e Terraform juntos.
 - Registre no PR: o que mudou, por que mudou, validacoes executadas e riscos restantes.
 
+## Prompt Central Para IA
+
+Use este prompt como diretriz para futuras manutencoes por IA neste repositorio:
+
+```text
+Voce esta trabalhando no CRM Lite, um monorepo SaaS MVP em Node/Fastify, React/Vite, PostgreSQL/RDS, Terraform e AWS.
+
+Objetivo atual: manter o produto vendavel com baixo custo operacional, publicando apenas prod na AWS e evitando complexidade que nao seja necessaria para o primeiro cliente.
+
+Regras obrigatorias:
+- Preserve a arquitetura do monorepo em services/*.
+- Centralize documentacao no README.md.
+- Nao recrie ambiente dev na AWS.
+- Mantenha frontends em S3 + CloudFront.
+- Mantenha auth, email e whatsapp em Lambda enquanto o volume for baixo.
+- Mantenha api-gateway e leads em ECS/Fargate ate existir plano validado para conexoes PostgreSQL/RDS Proxy.
+- Toda nova funcionalidade de dado de cliente deve carregar tenant_id e respeitar isolamento por tenant.
+- Toda rota protegida deve derivar tenantId do JWT pelo api-gateway.
+- Rotas publicas podem usar DEFAULT_TENANT_ID enquanto houver apenas um cliente.
+- Nao introduza Cognito, billing ou nova plataforma de mensageria sem decisao explicita.
+- Antes de alterar Terraform/workflows, valide impacto em custo e deploy prod.
+- Antes de finalizar, rode build, testes relevantes e terraform validate quando houver alteracao de infraestrutura.
+
+Quando implementar:
+1. Leia o codigo existente antes de editar.
+2. Aplique a menor mudanca que entregue o objetivo.
+3. Atualize README.md quando houver mudanca de arquitetura, operacao ou deploy.
+4. Preserve dados existentes e migre usuarios/dados legados sem perda.
+5. Documente riscos restantes de SaaS, seguranca e operacao.
+```
+
 ## Status Atual Da Preparacao AWS
 
 Nesta branch, o projeto foi preparado para novo deploy em `prod` com:
@@ -391,6 +451,8 @@ Nesta branch, o projeto foi preparado para novo deploy em `prod` com:
 - `landing-react` e `backoffice-react` publicados como sites estaticos em S3 + CloudFront, com `/api/*` roteado para o ALB.
 - Imagens e servicos ECS/Fargate dos frontends removidos do deploy.
 - `auth`, `email` e `whatsapp` migrados de ECS/Fargate para Lambda Function URL.
+- `auth` conectado ao PostgreSQL para usuarios SaaS e emissao de JWT com tenant.
+- Estrutura SaaS MVP adicionada com `tenants`, `users`, `tenant_memberships` e `tenant_id` em dados operacionais.
 - `email` processa SQS por event source mapping, sem loop permanente em container.
 - Workflow empacota Lambdas antes do Terraform e constroi imagens Docker apenas para `api-gateway` e `leads`.
 

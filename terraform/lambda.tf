@@ -106,12 +106,20 @@ resource "aws_lambda_function" "auth" {
       AUTH_JWT_SECRET    = var.auth_jwt_secret
       AUTH_CLIENTS       = jsonencode(local.auth_clients)
       INTERNAL_API_TOKEN = var.internal_api_token
+      DEFAULT_TENANT_ID  = "00000000-0000-0000-0000-000000000001"
+      DATABASE_URL       = "postgres://${aws_db_instance.postgres.username}:${aws_db_instance.postgres.password}@${aws_db_instance.postgres.endpoint}/${aws_db_instance.postgres.db_name}"
     }
+  }
+
+  vpc_config {
+    security_group_ids = [aws_security_group.internal_services.id]
+    subnet_ids         = aws_subnet.private[*].id
   }
 
   depends_on = [
     aws_cloudwatch_log_group.auth_lambda,
-    aws_iam_role_policy_attachment.lambda_basic_execution
+    aws_iam_role_policy_attachment.lambda_basic_execution,
+    aws_iam_role_policy_attachment.lambda_vpc_execution
   ]
 
   tags = {

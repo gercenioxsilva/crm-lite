@@ -1,6 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import jwt from 'jsonwebtoken';
 
+const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID || '00000000-0000-0000-0000-000000000001';
+
 // Auth middleware
 async function authMiddleware(request: any, reply: any) {
   const authHeader = request.headers.authorization
@@ -18,6 +20,7 @@ async function authMiddleware(request: any, reply: any) {
       userId: 'mock-admin',
       email: 'admin@quiz.com',
       name: 'Admin User',
+      tenantId: DEFAULT_TENANT_ID,
       role: 'admin',
       scope: 'leads:read leads:write reports:read api:read admin:access',
       isUser: true,
@@ -34,6 +37,7 @@ async function authMiddleware(request: any, reply: any) {
       userId: decoded.sub,
       email: decoded.email,
       name: decoded.name,
+      tenantId: decoded.tenantId || DEFAULT_TENANT_ID,
       role: decoded.role,
       scope: decoded.scope,
       isUser: !!decoded.email,
@@ -88,12 +92,13 @@ async function verifyGoogleIdToken(idToken: string) {
 }
 
 // Leads client
-async function createLead(input: any) {
+async function createLead(input: any, auth?: any) {
   try {
-    const response = await fetch(`${process.env.LEADS_BASE_URL}/leads`, {
+    const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/leads`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        ...tenantHeaders(auth)
       },
       body: JSON.stringify(input)
     });
@@ -120,6 +125,7 @@ async function proxyJson(baseUrl: string, path: string, req: any, reply: any) {
     headers: {
       'Content-Type': 'application/json',
       ...internalApiHeaders(),
+      ...tenantHeaders(req.auth),
       ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {})
     },
     body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body || {})
@@ -137,6 +143,13 @@ async function proxyJson(baseUrl: string, path: string, req: any, reply: any) {
 function internalApiHeaders(): Record<string, string> {
   const token = process.env.INTERNAL_API_TOKEN;
   return token ? { 'x-internal-api-token': token } : {};
+}
+
+function tenantHeaders(auth?: any): Record<string, string> {
+  const tenantId = auth?.tenantId || DEFAULT_TENANT_ID;
+  const headers: Record<string, string> = { 'x-tenant-id': tenantId };
+  if (auth?.userId) headers['x-user-id'] = auth.userId;
+  return headers;
 }
 
 export async function registerRoutes(app: FastifyInstance){
@@ -183,7 +196,9 @@ export async function registerRoutes(app: FastifyInstance){
   // Get custom fields for public forms
   app.get('/api/public/custom-fields', { schema: { tags: ['public'], summary: 'Get active custom fields' } as any }, async (req) => {
     try {
-      const response = await fetch(`${process.env.LEADS_BASE_URL}/custom-fields`);
+      const response = await fetch(`${process.env.LEADS_BASE_URL}/custom-fields`, {
+        headers: tenantHeaders()
+      });
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -204,7 +219,7 @@ export async function registerRoutes(app: FastifyInstance){
     }
     
     const profile = await verifyGoogleIdToken(credential);
-    const lead = await createLead({ 
+    const lead = await createLead({
       name: profile.name, 
       email: profile.email, 
       source: 'google' 
@@ -242,7 +257,9 @@ export async function registerRoutes(app: FastifyInstance){
       schema: { tags: ['backoffice'], summary: 'Dashboard stats', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
       try {
-        const leadsResponse = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/leads`);
+        const leadsResponse = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/leads`, {
+          headers: tenantHeaders((req as any).auth)
+        });
         
         if (!leadsResponse.ok) {
           throw new Error(`HTTP ${leadsResponse.status}`);
@@ -305,7 +322,9 @@ export async function registerRoutes(app: FastifyInstance){
       schema: { tags: ['backoffice'], summary: 'Chart data', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
       try {
-        const leadsResponse = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/leads`);
+        const leadsResponse = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/leads`, {
+          headers: tenantHeaders((req as any).auth)
+        });
         
         if (!leadsResponse.ok) {
           throw new Error(`HTTP ${leadsResponse.status}`);
@@ -345,7 +364,9 @@ export async function registerRoutes(app: FastifyInstance){
     }, async (req) => {
       // Fetch real data from leads service
       try {
-        const leadsResponse = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/leads`);
+        const leadsResponse = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/leads`, {
+          headers: tenantHeaders((req as any).auth)
+        });
         
         if (!leadsResponse.ok) {
           throw new Error(`HTTP ${leadsResponse.status}`);
@@ -397,7 +418,7 @@ export async function registerRoutes(app: FastifyInstance){
           source: body.source || 'backoffice',
           monthly_income: body.monthly_income,
           notes: body.notes
-        });
+        }, (req as any).auth);
         return lead;
       } catch (error) {
         console.error('Error creating lead:', error);
@@ -416,7 +437,8 @@ export async function registerRoutes(app: FastifyInstance){
         const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/leads/${id}`, {
           method: 'PUT',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            ...tenantHeaders((req as any).auth)
           },
           body: JSON.stringify(body)
         });
@@ -444,7 +466,8 @@ export async function registerRoutes(app: FastifyInstance){
         const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/leads/${id}/move`, {
           method: 'PUT',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            ...tenantHeaders((req as any).auth)
           },
           body: JSON.stringify({ stageId })
         });
@@ -466,7 +489,9 @@ export async function registerRoutes(app: FastifyInstance){
       schema: { tags: ['backoffice'], summary: 'List activities', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
       try {
-        const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/activities`);
+        const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/activities`, {
+          headers: tenantHeaders((req as any).auth)
+        });
         
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
@@ -491,7 +516,8 @@ export async function registerRoutes(app: FastifyInstance){
         const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/activities`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            ...tenantHeaders((req as any).auth)
           },
           body: JSON.stringify({
             lead_id: body.leadId,
@@ -597,7 +623,9 @@ export async function registerRoutes(app: FastifyInstance){
       schema: { tags: ['backoffice'], summary: 'Pipeline board', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
       try {
-        const pipelineResponse = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/pipeline`);
+        const pipelineResponse = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/pipeline`, {
+          headers: tenantHeaders((req as any).auth)
+        });
         
         if (!pipelineResponse.ok) {
           throw new Error(`HTTP ${pipelineResponse.status}`);
@@ -733,7 +761,9 @@ export async function registerRoutes(app: FastifyInstance){
       schema: { tags: ['backoffice'], summary: 'Get custom fields', security: [{ bearerAuth: [] }] } as any
     }, async (req) => {
       try {
-        const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/custom-fields`);
+        const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/custom-fields`, {
+          headers: tenantHeaders((req as any).auth)
+        });
         
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
@@ -756,7 +786,8 @@ export async function registerRoutes(app: FastifyInstance){
         const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/custom-fields`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            ...tenantHeaders((req as any).auth)
           },
           body: JSON.stringify(body)
         });
@@ -784,7 +815,8 @@ export async function registerRoutes(app: FastifyInstance){
         const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/custom-fields/${id}`, {
           method: 'PUT',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            ...tenantHeaders((req as any).auth)
           },
           body: JSON.stringify(body)
         });
@@ -809,7 +841,8 @@ export async function registerRoutes(app: FastifyInstance){
       
       try {
         const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/custom-fields/${id}`, {
-          method: 'DELETE'
+          method: 'DELETE',
+          headers: tenantHeaders((req as any).auth)
         });
         
         if (!response.ok) {
