@@ -1,10 +1,10 @@
 # RDS Subnet Group
 resource "aws_db_subnet_group" "main" {
-  name       = "crm-db-subnet-group-${var.environment}"
-  subnet_ids = aws_subnet.private[*].id
+  name_prefix = "crm-db-${var.environment}-"
+  subnet_ids  = aws_subnet.private[*].id
 
   tags = {
-    Name        = "crm-db-subnet-group-${var.environment}"
+    Name        = "crm-db-subnet-group-${var.environment}-app"
     Environment = var.environment
   }
 }
@@ -30,7 +30,7 @@ resource "aws_security_group" "rds" {
 
 # RDS PostgreSQL Instance
 resource "aws_db_instance" "postgres" {
-  identifier = "crm-postgres-${var.environment}"
+  identifier = "crm-postgres-${var.environment}-app"
 
   engine         = "postgres"
   engine_version = "16.4"
@@ -56,18 +56,18 @@ resource "aws_db_instance" "postgres" {
   deletion_protection = var.environment == "prod"
 
   tags = {
-    Name        = "crm-postgres-${var.environment}"
+    Name        = "crm-postgres-${var.environment}-app"
     Environment = var.environment
   }
 }
 
 # DocumentDB Subnet Group
 resource "aws_docdb_subnet_group" "main" {
-  name       = "crm-docdb-subnet-group-${var.environment}"
-  subnet_ids = aws_subnet.private[*].id
+  name_prefix = "crm-docdb-${var.environment}-"
+  subnet_ids  = aws_subnet.private[*].id
 
   tags = {
-    Name        = "crm-docdb-subnet-group-${var.environment}"
+    Name        = "crm-docdb-subnet-group-${var.environment}-app"
     Environment = var.environment
   }
 }
@@ -93,7 +93,7 @@ resource "aws_security_group" "docdb" {
 
 # DocumentDB Cluster
 resource "aws_docdb_cluster" "main" {
-  cluster_identifier      = "crm-docdb-${var.environment}"
+  cluster_identifier      = "crm-docdb-${var.environment}-app"
   engine                  = "docdb"
   master_username         = "crmadmin"
   master_password         = "crm123456"
@@ -104,7 +104,7 @@ resource "aws_docdb_cluster" "main" {
   vpc_security_group_ids  = [aws_security_group.docdb.id]
 
   tags = {
-    Name        = "crm-docdb-${var.environment}"
+    Name        = "crm-docdb-${var.environment}-app"
     Environment = var.environment
   }
 }
@@ -112,12 +112,12 @@ resource "aws_docdb_cluster" "main" {
 # DocumentDB Instance
 resource "aws_docdb_cluster_instance" "main" {
   count              = var.environment == "prod" ? 2 : 1
-  identifier         = "crm-docdb-${var.environment}-${count.index}"
+  identifier         = "crm-docdb-${var.environment}-app-${count.index}"
   cluster_identifier = aws_docdb_cluster.main.id
   instance_class     = var.environment == "prod" ? "db.t3.medium" : "db.t3.medium"
 
   tags = {
-    Name        = "crm-docdb-${var.environment}-${count.index}"
+    Name        = "crm-docdb-${var.environment}-app-${count.index}"
     Environment = var.environment
   }
 }
