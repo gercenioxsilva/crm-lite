@@ -264,27 +264,95 @@ WhatsApp:
 
 ## Modelo De Dados Principal
 
-Tabelas centrais do PostgreSQL:
+Todas as tabelas operacionais incluem `tenant_id uuid NOT NULL REFERENCES tenants(id)` para isolamento logico por cliente SaaS. Toda chamada interna do backoffice para `leads` deve carregar `x-tenant-id`; o `api-gateway` deriva esse valor do JWT.
 
-- `tenants`: clientes/contas SaaS.
-- `users`: usuarios autenticaveis, vinculados a um tenant.
-- `tenant_memberships`: vinculo usuario-tenant para evolucao de permissoes.
-- `leads`: cadastro, origem, status, score, temperatura, prioridade, dados comerciais e contato.
-- `activities`: historico de interacoes, ligacoes, emails, reunioes, tarefas e notas.
-- `pipelines`: funis ativos.
-- `stages`: etapas do pipeline.
-- `lead_pipeline`: posicao atual do lead no pipeline.
-- `custom_fields`: campos dinamicos do formulario.
-- `lead_custom_values`: valores dinamicos por lead.
+### Tabelas PostgreSQL
 
-No MVP SaaS, as tabelas operacionais usam `tenant_id` para isolamento logico. Toda chamada interna do backoffice para `leads` deve carregar `x-tenant-id`; o `api-gateway` deriva esse valor do JWT.
+**tenants** — clientes/contas SaaS
+| Coluna | Tipo | Detalhe |
+| --- | --- | --- |
+| id | uuid PK | gen_random_uuid() |
+| name | text | nome do cliente |
+| slug | text UNIQUE | identificador URL |
+| status | text | active \| suspended \| cancelled |
+| plan | text | starter \| professional \| enterprise |
 
-Email usa MongoDB/DocumentDB para rastreio de mensagens:
+**users** — usuarios autenticaveis, vinculados a um tenant
+| Coluna | Tipo | Detalhe |
+| --- | --- | --- |
+| id | uuid PK | |
+| tenant_id | uuid FK | |
+| email | text UNIQUE | |
+| role | text | admin \| user |
+| password_hash | text | SHA-256 |
 
-- remetente/destinatarios.
-- assunto e corpo.
-- status `pending`, `sent`, `delivered`, `failed`.
-- `leadId`, `campaignId`, prioridade, tentativas e erro.
+**leads** — cadastro central do CRM
+| Coluna | Tipo | Detalhe |
+| --- | --- | --- |
+| id | uuid PK | |
+| tenant_id | uuid FK | obrigatorio |
+| name | text | nome do lead ou empresa |
+| email | text | UNIQUE por tenant |
+| phone | text | |
+| document | varchar(18) | CPF formatado (000.000.000-00) ou CNPJ (00.000.000/0000-00) |
+| document_type | varchar(10) | 'cpf' \| 'cnpj' — default 'cpf' |
+| company | text | nome da empresa (B2B) |
+| job_title | text | |
+| cep, address_line, number, complement, neighborhood, city, state | text | endereco completo |
+| monthly_income | decimal(15,2) | renda mensal (B2C) |
+| lead_value | decimal(15,2) | valor estimado do negocio |
+| expected_close_date | date | |
+| priority | text | low \| medium \| high \| urgent |
+| assigned_to | text | responsavel |
+| source | text | origem do lead |
+| utm_source, utm_medium, utm_campaign | text | rastreio de campanha |
+| status | text | new \| contacted \| qualified \| proposal \| negotiation \| won \| lost |
+| score | integer | 0-100, default 50 |
+| temperature | text | cold \| warm \| hot |
+| terms_accepted | boolean | |
+| consent_lgpd | boolean | |
+| stage_id | uuid FK | estagio atual (atalho) |
+| next_follow_up | timestamptz | |
+| metadata | jsonb | dados extras livres |
+
+> **Nota B2B/B2C:** quando `document_type = 'cnpj'`, `name` e `company` representam a empresa; `document` guarda o CNPJ formatado. Para leads B2C, `document_type = 'cpf'`. O campo legado `cpf` foi removido na migration `0010_document_field.sql`; a API ainda aceita `cpf` no corpo da requisicao como alias retroativo.
+
+**activities** — historico de interacoes
+| Coluna | Tipo | Detalhe |
+| --- | --- | --- |
+| id | uuid PK | |
+| lead_id | uuid FK | |
+| tenant_id | uuid FK | |
+| type | text | call \| email \| meeting \| whatsapp \| sms \| note \| task |
+| subject, description | text | |
+| outcome | text | interested \| not_interested \| callback \| meeting_scheduled \| no_answer \| completed \| sent \| opened \| clicked |
+| duration_minutes | integer | |
+| follow_up_required | boolean | |
+| next_action | text | |
+| created_by | text | |
+
+**pipelines / stages / lead_pipeline** — funil de vendas
+- `pipelines`: funis ativos por tenant.
+- `stages`: etapas de um pipeline com `order_no`, `stage_color`, `conversion_probability`.
+- `lead_pipeline`: posicao atual do lead no funil (`lead_id`, `pipeline_id`, `current_stage_id`).
+
+**custom_fields / lead_custom_values** — campos dinamicos por tenant
+| Coluna | Tipo | Detalhe |
+| --- | --- | --- |
+| name | varchar(100) | chave da API (snake_case) |
+| label | varchar(200) | rotulo para UI |
+| field_type | varchar(50) | text \| email \| phone \| number \| select \| checkbox \| textarea \| date |
+| is_required | boolean | |
+| options | jsonb | para campos select |
+| tenant_id | uuid FK | isolamento por cliente |
+
+Campos de contatos B2B (compras, manutencao, fiscal) sao armazenados como custom fields ativos por tenant, evitando colunas fixas para dados opcionais de contexto.
+
+### Colecoes MongoDB/DocumentDB (servico email)
+
+- remetente/destinatarios, assunto, corpo HTML e texto.
+- status: `pending` → `sent` → `delivered` \| `failed`.
+- `leadId`, `campaignId`, prioridade, tentativas e motivo de erro.
 
 ## Deploy AWS
 
@@ -396,10 +464,14 @@ Antes de considerar pronto para AWS:
 - Lambda Function URL CORS: usar `allow_methods = ["*"]`; `OPTIONS` excede a validacao da API de Function URL.
 - Lambda env vars: nao configurar `AWS_REGION`; ela e reservada pelo runtime Lambda.
 - Lambda consumindo SQS: `visibility_timeout_seconds` da fila deve ser maior ou igual ao `timeout` da Lambda. Para `email`, a Lambda usa 60s e a fila `crm-email-queue-prod` usa 120s.
+- Lambda `ResourceConflictException` (409) no deploy: adicionar `publish = true` nas tres Lambdas e `retry_mode = "adaptive"` / `max_retries = 10` no provider AWS do Terraform. Corrigido em `terraform/lambda.tf` e `terraform/main.tf`.
 - ECS deploy: nao use apenas `aws ecs wait services-stable` sem diagnostico. O workflow usa `scripts/wait-ecs-services.sh` com timeout maior, eventos do servico e detalhes de tasks paradas.
+- ECS Service Discovery DNS lag: o DNS do Cloud Map (`crm-leads-prod.crm.local`) e registrado de forma assincrona apos o ECS declarar o servico como stable; pode demorar ate 60s. O `validate-demo-mvp.sh` retenta criacao e listagem com ate 6 tentativas para absorver esse lag.
 - Migracoes: o workflow usa `scripts/run-leads-migrations-task.sh`, aguarda a task Fargate terminar e falha se o container `leads` retornar exit code diferente de `0`.
 - Banco existente sem historico: `services/leads/src/scripts/migrate.ts` cria `schema_migrations`, faz baseline das migrations legadas quando detecta schema CRM existente e executa apenas a migracao SaaS pendente.
 - Demo MVP: migrations rodam como melhor-esforco e `scripts/validate-demo-mvp.sh` e o criterio final do deploy. Ele cria um lead via `/api/public/leads` e confirma leitura via `/api/backoffice/leads` com `mock-admin-token`.
+- Fallback silencioso no api-gateway: a funcao `createLead` nao deve ter bloco `catch` retornando mock; erros do servico de leads devem propagar como HTTP 502 com detalhes. Qualquer rota que chame um servico interno deve falhar visivelmente, nunca com `[]` ou mock.
+- Mismatch camelCase/snake_case: o api-gateway envia os campos para o servico de leads em camelCase (`birthDate`, `termsAccepted`, `consentLgpd`, `addressLine`, `monthlyIncome`); o servico de leads le do `body` em camelCase. Nao misturar convencoes entre as camadas.
 
 ## Regras De Manutencao
 
@@ -415,33 +487,137 @@ Antes de considerar pronto para AWS:
 
 ## Prompt Central Para IA
 
-Use este prompt como diretriz para futuras manutencoes por IA neste repositorio:
+Use este prompt como diretriz para futuras manutencoes por IA neste repositorio.
 
 ```text
-Voce esta trabalhando no CRM Lite, um monorepo SaaS MVP em Node/Fastify, React/Vite, PostgreSQL/RDS, Terraform e AWS.
+Voce esta trabalhando no CRM Lite, um monorepo SaaS MVP em Node/Fastify, React/Vite,
+PostgreSQL/RDS, Terraform e AWS. Objetivo: manter o produto vendavel com baixo custo
+operacional, publicando apenas prod na AWS.
 
-Objetivo atual: manter o produto vendavel com baixo custo operacional, publicando apenas prod na AWS e evitando complexidade que nao seja necessaria para o primeiro cliente.
+=== REGRAS OBRIGATORIAS ===
 
-Regras obrigatorias:
 - Preserve a arquitetura do monorepo em services/*.
-- Centralize documentacao no README.md.
+- Centralize documentacao no README.md. Nao crie novos arquivos .md.
 - Nao recrie ambiente dev na AWS.
 - Mantenha frontends em S3 + CloudFront.
 - Mantenha auth, email e whatsapp em Lambda enquanto o volume for baixo.
-- Mantenha api-gateway e leads em ECS/Fargate ate existir plano validado para conexoes PostgreSQL/RDS Proxy.
-- Toda nova funcionalidade de dado de cliente deve carregar tenant_id e respeitar isolamento por tenant.
-- Toda rota protegida deve derivar tenantId do JWT pelo api-gateway.
-- Rotas publicas podem usar DEFAULT_TENANT_ID enquanto houver apenas um cliente.
-- Nao introduza Cognito, billing ou nova plataforma de mensageria sem decisao explicita.
+- Mantenha api-gateway e leads em ECS/Fargate ate existir plano validado para RDS Proxy.
+- Toda nova coluna ou dado de cliente deve carregar tenant_id.
+- Toda rota protegida deriva tenantId do JWT via api-gateway.
+- Rotas publicas usam DEFAULT_TENANT_ID enquanto houver apenas um cliente.
+- Nao introduza Cognito, billing ou nova plataforma sem decisao explicita.
 - Antes de alterar Terraform/workflows, valide impacto em custo e deploy prod.
-- Antes de finalizar, rode build, testes relevantes e terraform validate quando houver alteracao de infraestrutura.
+- Antes de finalizar: npm run build:all, npm run test:leads, terraform validate se houver .tf.
 
-Quando implementar:
-1. Leia o codigo existente antes de editar.
-2. Aplique a menor mudanca que entregue o objetivo.
-3. Atualize README.md quando houver mudanca de arquitetura, operacao ou deploy.
-4. Preserve dados existentes e migre usuarios/dados legados sem perda.
-5. Documente riscos restantes de SaaS, seguranca e operacao.
+=== SKILLS DE ARQUITETURA ===
+
+Estas skills descrevem padroes obrigatorios. Aplique-as sempre que o contexto se encaixar.
+
+--- SKILL: Convencao de Nomes entre Camadas ---
+O projeto usa convencoes distintas por camada. NUNCA misture.
+- API Gateway envia para o Leads Service: corpo em camelCase
+  (birthDate, termsAccepted, consentLgpd, addressLine, monthlyIncome, documentType)
+- Leads Service le do body: camelCase (body.birthDate, body.termsAccepted etc.)
+- Banco de dados: snake_case (birth_date, terms_accepted, document_type)
+- API Gateway propaga para o cliente: snake_case nos campos de resposta (lead.created_at)
+Erro classico: api-gateway envia `terms_accepted` mas leads service le `body.termsAccepted`
+e salva NULL silenciosamente. Sempre verifique a convencao de cada camada ao adicionar campos.
+
+--- SKILL: Modelo de Documento (CPF/CNPJ) ---
+Leads B2C usam CPF; leads B2B usam CNPJ. Campos no banco:
+  document      varchar(18)  -- "000.000.000-00" ou "00.000.000/0000-00"
+  document_type varchar(10)  -- 'cpf' | 'cnpj', DEFAULT 'cpf'
+A API aceita tanto `document`+`document_type` (novo) quanto `cpf` (alias retroativo).
+Nunca adicione campos separados `cpf` e `cnpj`; sempre use o par document/document_type.
+Quando document_type = 'cnpj': `name` e `company` representam a empresa.
+Campos de contato B2B (compras, manutencao, fiscal) ficam em custom_fields, nao em colunas.
+
+--- SKILL: Isolamento Multi-Tenant ---
+Toda query ao banco DEVE filtrar por tenant_id. Modelo:
+  WHERE l.tenant_id = $N
+O tenant_id vem sempre do header `x-tenant-id` injetado pelo api-gateway a partir do JWT.
+Em rotas publicas usa DEFAULT_TENANT_ID do ambiente.
+Nunca confie no tenant_id enviado pelo cliente; sempre derive do token autenticado.
+Indices obrigatorios: toda tabela operacional tem (tenant_id, created_at DESC).
+
+--- SKILL: Tratamento de Erros em Servicos Internos ---
+NUNCA use bloco catch que retorna mock, [] ou dado fabricado quando um servico interno falha.
+Padrao correto no api-gateway:
+  try {
+    const result = await fetch(LEADS_BASE_URL + '/leads', ...)
+    if (!result.ok) throw new Error(`HTTP ${result.status}: ${await result.text()}`)
+    return await result.json()
+  } catch (err: any) {
+    reply.code(502)
+    return { error: 'Service unavailable', details: err.message }
+  }
+Retornar [] ou mock mascara falhas reais e torna deploy indetectavel. Sempre 502 com details.
+
+--- SKILL: Retrocompatibilidade em Mudanca de Campos ---
+Ao renomear ou substituir um campo (ex: cpf -> document):
+1. Adicione o campo novo com ADD COLUMN IF NOT EXISTS na migration.
+2. Migre os dados existentes com UPDATE ... WHERE novo_campo IS NULL.
+3. Na API, aceite AMBOS os nomes: `body.document || body.cpf`.
+4. Na resposta, retorne apenas o nome novo.
+5. Documente o alias no README e nas Falhas Conhecidas.
+Nunca quebre a API para dados existentes em producao.
+
+--- SKILL: Pattern de Migration PostgreSQL ---
+Toda migration deve ser idempotente. Modelo:
+  ALTER TABLE leads ADD COLUMN IF NOT EXISTS novo_campo tipo DEFAULT valor;
+  UPDATE leads SET novo_campo = valor_antigo WHERE novo_campo IS NULL;
+  DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='nome_constraint')
+    THEN ALTER TABLE leads ADD CONSTRAINT nome_constraint CHECK (...); END IF; END $$;
+  CREATE INDEX IF NOT EXISTS idx_nome ON tabela(colunas);
+  ALTER TABLE leads DROP COLUMN IF EXISTS coluna_antiga;
+Registre a nova migration no array `migrations` em services/leads/src/scripts/migrate.ts.
+Nao existe rollback automatico; toda migration deve ser segura para rodar em producao com dados.
+
+--- SKILL: Pattern de Testes Unitarios (Leads Service) ---
+Testes ficam em services/leads/tests/*.test.ts.
+Sempre mocke o Pool do pg no topo do arquivo, antes dos imports:
+  const mockPool = { query: jest.fn() }
+  jest.mock('pg', () => ({ Pool: jest.fn(() => mockPool) }))
+Use buildServer() + app.inject() para testar via HTTP real (nao teste funcoes internas).
+Sequencia de mockPool.query.mockResolvedValueOnce() deve espelhar EXATAMENTE a ordem
+das queries no handler (INSERT leads, INSERT lead_pipeline, INSERT custom_fields, etc.).
+Para testar que a query SQL usa o campo certo, inspecione mockPool.query.mock.calls[0][0]
+(string SQL) e mockPool.query.mock.calls[0][1] (array de parametros).
+
+--- SKILL: Custom Fields vs Colunas ---
+Use custom fields para: dados opcionais de contexto B2B, campos que variam por cliente,
+informacoes que nao precisam de index ou filtro no banco.
+Use colunas para: campos universais de todos os leads, campos usados em WHERE/ORDER BY,
+campos criticos para o negocio (status, score, temperature, document, company).
+Contatos departamentais (compras, manutencao, fiscal) -> custom fields.
+CNPJ, empresa, telefone principal -> colunas nativas.
+
+--- SKILL: Deploy Lambda Terraform ---
+Toda aws_lambda_function deve ter:
+  publish = true   -- aguarda estado Active antes de prosseguir; previne ResourceConflictException
+O provider AWS deve ter:
+  retry_mode  = "adaptive"
+  max_retries = 10
+Nunca configure AWS_REGION como variavel de ambiente na Lambda; e reservada pelo runtime.
+visibility_timeout_seconds da fila SQS deve ser >= timeout da Lambda que a consome.
+
+--- SKILL: Validacao de Deploy ECS ---
+O DNS do Cloud Map (crm-leads-prod.crm.local) e registrado assincronamente apos o ECS
+declarar rolloutState=COMPLETED. Pode demorar ate 60 segundos.
+Qualquer script de validacao que dependa de servicos ECS deve usar retry com sleep:
+  max_attempts=6; interval=10  # 60s total
+  for attempt in $(seq 1 $max_attempts); do ... sleep $interval; done
+O wait-ecs-services.sh aguarda o rollout mas NAO garante prontidao do DNS.
+
+=== QUANDO IMPLEMENTAR ===
+
+1. Leia o codigo existente antes de qualquer edicao (Read, Grep, Glob).
+2. Aplique a menor mudanca que entregue o objetivo; nao refatore o que nao e pedido.
+3. Verifique a skill aplicavel antes de escrever codigo novo.
+4. Atualize README.md quando houver mudanca de arquitetura, operacao ou deploy.
+5. Preserve dados existentes; migre sem perda e com retrocompatibilidade.
+6. Rode build:all e test:leads antes de commitar qualquer alteracao em leads ou api-gateway.
+7. Valide terraform plan localmente antes de commitar alteracoes em terraform/*.tf.
 ```
 
 ## Status Atual Da Preparacao AWS
