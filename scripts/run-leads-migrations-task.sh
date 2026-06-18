@@ -80,30 +80,28 @@ stopped_reason=$(aws ecs describe-tasks \
   --query 'tasks[0].stoppedReason' \
   --output text)
 
-log_stream=$(aws ecs describe-tasks \
-  --cluster "$cluster_name" \
-  --tasks "$task_arn" \
-  --query "tasks[0].containers[?name=='migrate'].logStreamName | [0]" \
-  --output text)
+# awslogs stream name format: {prefix}/{container}/{task-id}
+# ECS describe-tasks does not expose logStreamName; compute it from the task ARN.
+task_id=$(echo "$task_arn" | awk -F'/' '{print $NF}')
+log_group="/ecs/crm-${ENVIRONMENT}"
+log_stream="migrate/migrate/${task_id}"
 
 if [ "$exit_code" != "0" ]; then
   echo "Migration task failed with exit code ${exit_code}. Reason: ${stopped_reason}"
   aws ecs describe-tasks \
     --cluster "$cluster_name" \
     --tasks "$task_arn" \
-    --query 'tasks[0].containers[].{name:name,exitCode:exitCode,reason:reason,logStreamName:logStreamName}' \
+    --query 'tasks[0].containers[].{name:name,exitCode:exitCode,reason:reason}' \
     --output json
 
-  if [ -n "$log_stream" ] && [ "$log_stream" != "None" ]; then
-    echo "::group::Migration task logs"
-    aws logs get-log-events \
-      --log-group-name "/ecs/crm-${ENVIRONMENT}" \
-      --log-stream-name "$log_stream" \
-      --limit 100 \
-      --query 'events[].message' \
-      --output text || true
-    echo "::endgroup::"
-  fi
+  echo "::group::Migration task logs (${log_group}/${log_stream})"
+  aws logs get-log-events \
+    --log-group-name "$log_group" \
+    --log-stream-name "$log_stream" \
+    --limit 200 \
+    --query 'events[].message' \
+    --output text 2>/dev/null || echo "(no log stream found — container may have crashed before writing output)"
+  echo "::endgroup::"
 
   if [ "$MIGRATIONS_REQUIRED" = "true" ]; then
     exit 1
