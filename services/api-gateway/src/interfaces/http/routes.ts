@@ -401,7 +401,7 @@ export async function registerRoutes(app: FastifyInstance){
     app.post('/api/backoffice/leads', {
       preHandler: [requireScope('leads:write')],
       schema: { tags: ['backoffice'], summary: 'Create lead', security: [{ bearerAuth: [] }] } as any
-    }, async (req) => {
+    }, async (req, reply: any) => {
       const body = (req.body as any) || {};
       try {
         const lead = await createLead({
@@ -417,13 +417,15 @@ export async function registerRoutes(app: FastifyInstance){
           priority: body.priority || 'medium',
           assigned_to: body.assigned_to,
           source: body.source || 'backoffice',
-          monthly_income: body.monthly_income,
-          notes: body.notes
+          monthlyIncome: body.monthly_income,
+          termsAccepted: body.terms_accepted,
+          consentLgpd: body.consent_lgpd
         }, (req as any).auth);
         return lead;
-      } catch (error) {
-        console.error('Error creating lead:', error);
-        throw error;
+      } catch (error: any) {
+        console.error('Error creating lead via backoffice:', error.message);
+        reply.code(502);
+        return { error: 'Unable to create lead', details: error.message };
       }
     });
 

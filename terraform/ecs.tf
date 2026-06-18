@@ -151,6 +151,14 @@ resource "aws_ecs_task_definition" "leads" {
         { name = "DATABASE_URL", value = "postgres://${aws_db_instance.postgres.username}:${aws_db_instance.postgres.password}@${aws_db_instance.postgres.endpoint}/${aws_db_instance.postgres.db_name}" }
       ]
 
+      healthCheck = {
+        command     = ["CMD-SHELL", "wget -qO- http://localhost:3020/health || exit 1"]
+        interval    = 30
+        timeout     = 5
+        retries     = 3
+        startPeriod = 60
+      }
+
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -226,6 +234,12 @@ resource "aws_ecs_service" "leads" {
 
   service_registries {
     registry_arn = aws_service_discovery_service.leads.arn
+  }
+
+  # Terraform updates the task definition revision but does NOT trigger a rolling deploy.
+  # The workflow deploys the new revision explicitly AFTER migrations succeed.
+  lifecycle {
+    ignore_changes = [task_definition]
   }
 
   tags = {

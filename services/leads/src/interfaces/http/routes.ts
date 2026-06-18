@@ -50,11 +50,12 @@ export async function registerRoutes(app: FastifyInstance) {
 
       const query = `
         INSERT INTO leads (
-          name, email, phone, document, document_type, birth_date, cep, address_line, number,
+          name, email, phone, company, job_title,
+          document, document_type, birth_date, cep, address_line, number,
           complement, neighborhood, city, state, monthly_income, source,
           terms_accepted, consent_lgpd, status, score, temperature, tenant_id
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
         ) RETURNING *
       `;
 
@@ -62,6 +63,8 @@ export async function registerRoutes(app: FastifyInstance) {
         body.name,
         body.email,
         body.phone || null,
+        body.company || null,
+        body.job_title || null,
         document,
         documentType,
         body.birthDate || null,
