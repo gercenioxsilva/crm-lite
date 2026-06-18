@@ -22,7 +22,7 @@ const pool = process.env.DATABASE_URL
       max: 20
     });
 
-function tenantIdFromRequest(req: any, required = true): string {
+function tenantIdFromRequest(req: any, _required = true): string {
   const tenantId = req.headers['x-tenant-id'] || req.headers['X-Tenant-Id'];
   if (typeof tenantId === 'string' && tenantId.trim()) return tenantId;
   return DEFAULT_TENANT_ID;
@@ -44,21 +44,26 @@ export async function registerRoutes(app: FastifyInstance) {
       const body = req.body as any;
       const tenantId = tenantIdFromRequest(req, false);
       
+      // Aceita tanto o campo novo (document/document_type) quanto o legado (cpf)
+      const document = body.document || body.cpf || null;
+      const documentType = body.document_type || (body.cpf ? 'cpf' : 'cpf');
+
       const query = `
         INSERT INTO leads (
-          name, email, phone, cpf, birth_date, cep, address_line, number, 
-          complement, neighborhood, city, state, monthly_income, source, 
+          name, email, phone, document, document_type, birth_date, cep, address_line, number,
+          complement, neighborhood, city, state, monthly_income, source,
           terms_accepted, consent_lgpd, status, score, temperature, tenant_id
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
         ) RETURNING *
       `;
-      
+
       const values = [
         body.name,
         body.email,
         body.phone || null,
-        body.cpf || null,
+        document,
+        documentType,
         body.birthDate || null,
         body.cep || null,
         body.addressLine || null,
@@ -72,8 +77,8 @@ export async function registerRoutes(app: FastifyInstance) {
         body.termsAccepted || false,
         body.consentLgpd || false,
         'new',
-        50, // default score
-        'cold', // default temperature
+        50,
+        'cold',
         tenantId
       ];
 
@@ -251,7 +256,8 @@ export async function registerRoutes(app: FastifyInstance) {
       
       // Build dynamic update query
       const allowedFields = [
-        'name', 'email', 'phone', 'company', 'job_title', 
+        'name', 'email', 'phone', 'company', 'job_title',
+        'document', 'document_type',
         'lead_value', 'priority', 'assigned_to', 'next_follow_up',
         'temperature', 'score', 'status'
       ];
