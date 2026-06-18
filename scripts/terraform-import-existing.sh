@@ -13,7 +13,7 @@ aws_text() {
 }
 
 state_has() {
-  terraform state list 2>/dev/null | grep -Fxq "$1"
+  terraform state show "$1" >/dev/null 2>&1
 }
 
 import_if_missing() {
@@ -31,7 +31,25 @@ import_if_missing() {
   fi
 
   log "import $address ($import_id)"
-  terraform import -input=false -var="environment=$ENVIRONMENT" "$address" "$import_id"
+  local import_output
+  local import_status
+  set +e
+  import_output="$(terraform import -input=false -var="environment=$ENVIRONMENT" "$address" "$import_id" 2>&1)"
+  import_status=$?
+  set -e
+
+  if [ "$import_status" -eq 0 ]; then
+    echo "$import_output"
+    return 0
+  fi
+
+  if printf '%s' "$import_output" | grep -qi "already managing a remote object"; then
+    log "state already manages $address; continuing"
+    return 0
+  fi
+
+  echo "$import_output" >&2
+  return "$import_status"
 }
 
 vpc_id="$(aws_text ec2 describe-vpcs \
