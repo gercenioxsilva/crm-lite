@@ -14,7 +14,9 @@ terraform {
 }
 
 provider "aws" {
-  region = var.aws_region
+  region      = var.aws_region
+  retry_mode  = "adaptive"
+  max_retries = 10
 }
 
 # Variables
