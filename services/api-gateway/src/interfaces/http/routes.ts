@@ -93,21 +93,27 @@ async function verifyGoogleIdToken(_idToken: string) {
 
 // Leads client
 async function createLead(input: any, auth?: any) {
-  const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/leads`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...tenantHeaders(auth)
-    },
-    body: JSON.stringify(input)
-  });
+  const url = `${leadsBaseUrl()}/leads`;
 
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw new Error(`Leads service HTTP ${response.status}: ${errorText}`);
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...tenantHeaders(auth)
+      },
+      body: JSON.stringify(input)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`Leads service HTTP ${response.status}: ${errorText}`);
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    throw new Error(`Leads service request failed for ${url}: ${errorSummary(error)}`);
   }
-
-  return await response.json();
 }
 
 async function proxyJson(baseUrl: string, path: string, req: any, reply: any) {
@@ -141,6 +147,24 @@ function tenantHeaders(auth?: any): Record<string, string> {
   const headers: Record<string, string> = { 'x-tenant-id': tenantId };
   if (auth?.userId) headers['x-user-id'] = auth.userId;
   return headers;
+}
+
+function errorSummary(error: any): string {
+  const cause = error?.cause;
+  const causeParts = [
+    cause?.code,
+    cause?.syscall,
+    cause?.hostname || cause?.host,
+    cause?.port,
+  ].filter(Boolean);
+
+  return causeParts.length > 0
+    ? `${error.message} (${causeParts.join(' ')})`
+    : error.message;
+}
+
+function leadsBaseUrl(): string {
+  return process.env.LEADS_BASE_URL || 'http://leads:3020';
 }
 
 export async function registerRoutes(app: FastifyInstance){

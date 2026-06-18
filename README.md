@@ -471,6 +471,7 @@ Antes de considerar pronto para AWS:
 - Banco limpo para MVP: enquanto nao ha dados reais, o deploy usa `TF_VAR_database_rebuild_token="mvp1"`, `TF_VAR_reset_schema="true"`, RDS sem deletion protection e `skip_final_snapshot=true`. Alterar o token cria um novo PostgreSQL vazio e roda as seeds iniciais de `tenants`, `users` e `tenant_memberships`.
 - Migration task: para reduzir falhas de rede durante bootstrap, `run-leads-migrations-task.sh` executa a task Fargate em subnets publicas com `assignPublicIp=ENABLED` e security group interno. A task e temporaria; os servicos continuam em subnets privadas. Para RDS recem-criado, `crm-migrate` usa `DB_CONNECT_MAX_RETRIES=120`, `DB_CONNECT_RETRY_DELAY_MS=5000` e registra o ultimo erro real de conexao no log.
 - RDS exigindo SSL: erro `no pg_hba.conf entry ... no encryption` significa que a conexao chegou ao PostgreSQL, mas sem TLS. Em AWS, `crm-migrate`, `crm-leads` e `crm-auth` usam `PGSSLMODE=require`; o codigo Node configura `pg` com SSL quando essa variavel esta ativa.
+- Bootstrap do leads: `services/leads/src/scripts/wait-for-db.ts` deve usar `DATABASE_URL`, `PGSSLMODE=require` e `DB_CONNECT_*`. Se ele usar host legado `db` ou conectar sem SSL, o ECS pode estabilizar incorretamente ou o gateway retornara `fetch failed`.
 - Logs de migration: o script procura o log stream real no CloudWatch por task id e imprime os eventos durante a espera, em sucesso ou falha. `MIGRATION_WAIT_TIMEOUT_SECONDS` controla o limite total da task; ao exceder o limite, o script imprime diagnostico, para a task no ECS e falha o deploy quando `MIGRATIONS_REQUIRED=true`.
 - Banco existente sem historico: `services/leads/src/scripts/migrate.ts` cria `schema_migrations`, faz baseline das migrations legadas quando detecta schema CRM existente e executa apenas a migracao SaaS pendente.
 - Demo MVP: `scripts/validate-demo-mvp.sh` e o criterio final do deploy. Ele cria um lead via `/api/public/leads` e confirma leitura via `/api/backoffice/leads` com `mock-admin-token`.
@@ -512,6 +513,7 @@ operacional, publicando apenas prod na AWS.
 - Nao introduza Cognito, billing ou nova plataforma sem decisao explicita.
 - Antes de alterar Terraform/workflows, valide impacto em custo e deploy prod.
 - Antes de finalizar: npm run build:all, npm run test:leads, terraform validate se houver .tf.
+- Em AWS, toda conexao PostgreSQL deve usar `PGSSLMODE=require`; isso vale para migration, leads runtime, auth Lambda e scripts de bootstrap.
 
 === SKILLS DE ARQUITETURA ===
 
@@ -610,9 +612,11 @@ Antes de terraform plan/apply, rode scripts/wait-lambda-updates.sh para evitar u
 O DNS do Cloud Map (crm-leads-prod.crm.local) e registrado assincronamente apos o ECS
 declarar rolloutState=COMPLETED. Pode demorar ate 60 segundos.
 Qualquer script de validacao que dependa de servicos ECS deve usar retry com sleep:
-  max_attempts=6; interval=10  # 60s total
+  max_attempts=12; interval=15  # 180s total para rotas criticas do demo MVP
   for attempt in $(seq 1 $max_attempts); do ... sleep $interval; done
 O wait-ecs-services.sh aguarda o rollout mas NAO garante prontidao do DNS.
+O leads service so deve iniciar depois de `wait-for-db.ts` conectar usando DATABASE_URL + PGSSLMODE=require.
+Erros `fetch failed` no api-gateway devem incluir LEADS_BASE_URL e causa do Node (ENOTFOUND, ECONNREFUSED, ETIMEDOUT).
 
 === QUANDO IMPLEMENTAR ===
 
