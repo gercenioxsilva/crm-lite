@@ -19,7 +19,8 @@ resource "aws_security_group" "rds" {
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
-    security_groups = [aws_security_group.ecs_tasks.id]
+    security_groups = [aws_security_group.ecs_tasks.id, aws_security_group.internal_services.id]
+    description     = "PostgreSQL access from API Gateway, leads and auth"
   }
 
   tags = {
@@ -82,7 +83,8 @@ resource "aws_security_group" "docdb" {
     from_port       = 27017
     to_port         = 27017
     protocol        = "tcp"
-    security_groups = [aws_security_group.ecs_tasks.id]
+    security_groups = [aws_security_group.ecs_tasks.id, aws_security_group.external_api_services.id]
+    description     = "DocumentDB access from legacy ECS services and email Lambda"
   }
 
   tags = {

@@ -102,6 +102,7 @@ resource "aws_ecs_task_definition" "api_gateway" {
         { name = "EMAIL_BASE_URL", value = trimsuffix(aws_lambda_function_url.email.function_url, "/") },
         { name = "WHATSAPP_BASE_URL", value = trimsuffix(aws_lambda_function_url.whatsapp.function_url, "/") },
         { name = "INTERNAL_API_TOKEN", value = var.internal_api_token },
+        { name = "DEFAULT_TENANT_ID", value = "00000000-0000-0000-0000-000000000001" },
         { name = "AUTH_JWT_SECRET", value = var.auth_jwt_secret }
       ]
 
@@ -146,6 +147,7 @@ resource "aws_ecs_task_definition" "leads" {
       environment = [
         { name = "NODE_ENV", value = var.environment },
         { name = "PORT", value = "3020" },
+        { name = "DEFAULT_TENANT_ID", value = "00000000-0000-0000-0000-000000000001" },
         { name = "DATABASE_URL", value = "postgres://${aws_db_instance.postgres.username}:${aws_db_instance.postgres.password}@${aws_db_instance.postgres.endpoint}/${aws_db_instance.postgres.db_name}" }
       ]
 
