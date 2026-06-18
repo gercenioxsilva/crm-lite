@@ -296,7 +296,7 @@ ses_event_destination_name="$(aws_text ses describe-configuration-set \
   --configuration-set-attribute-names eventDestinations \
   --query "EventDestinations[?Name=='crm-cloudwatch-${ENVIRONMENT}'].Name | [0]")"
 if [ -n "$ses_event_destination_name" ] && [ "$ses_event_destination_name" != "None" ]; then
-  import_if_missing "aws_ses_event_destination.cloudwatch" "crm-${ENVIRONMENT}|${ses_event_destination_name}"
+  import_if_missing "aws_ses_event_destination.cloudwatch" "crm-${ENVIRONMENT}/${ses_event_destination_name}"
 fi
 
 log "existing resource import pass complete"
