@@ -12,7 +12,7 @@ resource "aws_ecs_task_definition" "email" {
     {
       name  = "email"
       image = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/crm-email:${var.image_tag}"
-      
+
       portMappings = [
         {
           containerPort = 3040
@@ -60,7 +60,7 @@ resource "aws_ecs_task_definition" "whatsapp" {
     {
       name  = "whatsapp"
       image = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/crm-whatsapp:${var.image_tag}"
-      
+
       portMappings = [
         {
           containerPort = 3050
@@ -107,7 +107,7 @@ resource "aws_ecs_task_definition" "landing" {
     {
       name  = "landing"
       image = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/crm-landing-react:${var.image_tag}"
-      
+
       portMappings = [
         {
           containerPort = 80
@@ -146,7 +146,7 @@ resource "aws_ecs_task_definition" "backoffice" {
     {
       name  = "backoffice"
       image = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/crm-backoffice-react:${var.image_tag}"
-      
+
       portMappings = [
         {
           containerPort = 80
@@ -185,7 +185,7 @@ resource "aws_ecs_task_definition" "migrate" {
     {
       name  = "migrate"
       image = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/crm-leads:${var.image_tag}"
-      
+
       command = ["npm", "run", "migrate"]
 
       environment = [

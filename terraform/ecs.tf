@@ -90,7 +90,7 @@ resource "aws_ecs_task_definition" "api_gateway" {
     {
       name  = "api-gateway"
       image = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/crm-api-gateway:${var.image_tag}"
-      
+
       portMappings = [
         {
           containerPort = 3000
@@ -139,7 +139,7 @@ resource "aws_ecs_task_definition" "auth" {
     {
       name  = "auth"
       image = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/crm-auth:${var.image_tag}"
-      
+
       portMappings = [
         {
           containerPort = 3050
@@ -184,7 +184,7 @@ resource "aws_ecs_task_definition" "leads" {
     {
       name  = "leads"
       image = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/crm-leads:${var.image_tag}"
-      
+
       portMappings = [
         {
           containerPort = 3020
