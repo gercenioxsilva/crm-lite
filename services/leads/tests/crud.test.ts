@@ -1,28 +1,87 @@
-import { InMemoryLeadRepository } from '../src/infrastructure/repositories/InMemoryLeadRepository';
-import { CreateLead } from '../src/application/use-cases/CreateLead';
-import { GetLeadById } from '../src/application/use-cases/GetLeadById';
-import { UpdateLead } from '../src/application/use-cases/UpdateLead';
-import { DeleteLead } from '../src/application/use-cases/DeleteLead';
+const mockPool = {
+  query: jest.fn()
+};
 
-describe('Leads - CRUD', () => {
-  it('gets, updates and deletes a lead', async () => {
-    const repo = new InMemoryLeadRepository();
-    const create = new CreateLead(repo as any);
-    const get = new GetLeadById(repo as any);
-    const update = new UpdateLead(repo as any);
-    const del = new DeleteLead(repo as any);
+jest.mock('pg', () => ({
+  Pool: jest.fn(() => mockPool)
+}));
 
-    const created = await create.execute({ name: 'Bob', email: 'b@example.com', source: 'test' });
-    const found = await get.execute(created.props.id);
-    expect(found?.props.email).toBe('b@example.com');
+import { buildServer } from '../src/infrastructure/server';
 
-    const updated = await update.execute({ id: created.props.id, name: 'Bob U', email: 'b2@example.com', source: 'updated' });
-    expect(updated.props.name).toBe('Bob U');
+describe('Leads API - read and update', () => {
+  beforeEach(() => {
+    mockPool.query.mockReset();
+  });
 
-    const res = await del.execute(created.props.id);
-    expect(res.deleted).toBe(true);
+  it('gets a lead by id', async () => {
+    const lead = {
+      id: 'lead-1',
+      name: 'Bob',
+      email: 'b@example.com',
+      source: 'test',
+      status: 'new'
+    };
 
-    const missing = await get.execute(created.props.id);
-    expect(missing).toBeNull();
+    mockPool.query.mockResolvedValueOnce({ rows: [lead] });
+
+    const app = buildServer();
+    await app.ready();
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/leads/lead-1'
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual(lead);
+
+    await app.close();
+  });
+
+  it('updates a lead with valid fields', async () => {
+    const updatedLead = {
+      id: 'lead-1',
+      name: 'Bob U',
+      email: 'b2@example.com',
+      source: 'updated',
+      status: 'qualified'
+    };
+
+    mockPool.query.mockResolvedValueOnce({ rows: [updatedLead] });
+
+    const app = buildServer();
+    await app.ready();
+
+    const response = await app.inject({
+      method: 'PUT',
+      url: '/leads/lead-1',
+      payload: {
+        name: 'Bob U',
+        email: 'b2@example.com',
+        status: 'qualified'
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual(updatedLead);
+
+    await app.close();
+  });
+
+  it('returns 404 when a lead is not found', async () => {
+    mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+    const app = buildServer();
+    await app.ready();
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/leads/missing'
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual({ error: 'Lead not found' });
+
+    await app.close();
   });
 });

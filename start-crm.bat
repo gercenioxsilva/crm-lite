@@ -191,14 +191,31 @@ if not errorlevel 1 (
     echo ❌ Backoffice: FALHOU
 )
 
+:: Testar Assets (CSS/JS)
+echo.
+echo 🎨 Verificando assets:
+curl -s -o nul -w "%%{http_code}" http://localhost:3010/assets/ 2>nul | findstr "200\|403" >nul
+if not errorlevel 1 (
+    echo ✅ Landing Assets: OK
+) else (
+    echo ⚠️  Landing Assets: Podem estar com problema
+)
+
+curl -s -o nul -w "%%{http_code}" http://localhost:3030/assets/ 2>nul | findstr "200\|403" >nul
+if not errorlevel 1 (
+    echo ✅ Backoffice Assets: OK
+) else (
+    echo ⚠️  Backoffice Assets: Podem estar com problema
+)
+
 echo.
 
 :: Testar dados reais
 echo 📊 Verificando dados reais:
-curl -s -H "Authorization: Bearer mock-admin-token" http://localhost:3000/backoffice/stats 2>nul | findstr "totalLeads" >nul
+curl -s -H "Authorization: Bearer mock-admin-token" http://localhost:3000/api/backoffice/stats 2>nul | findstr "totalLeads" >nul
 if not errorlevel 1 (
     echo ✅ Dashboard com dados reais: OK
-    for /f "tokens=*" %%i in ('curl -s -H "Authorization: Bearer mock-admin-token" http://localhost:3000/backoffice/stats 2^>nul') do (
+    for /f "tokens=*" %%i in ('curl -s -H "Authorization: Bearer mock-admin-token" http://localhost:3000/api/backoffice/stats 2^>nul') do (
         echo    Dados: %%i
     )
 ) else (
@@ -208,7 +225,7 @@ if not errorlevel 1 (
 :: Testar criação de lead
 echo.
 echo 🧪 Testando criacao de lead:
-curl -s -X POST http://localhost:3000/public/leads -H "Content-Type: application/json" -d "{\"name\":\"Teste Sistema\",\"email\":\"teste@sistema.com\",\"source\":\"test\"}" >nul 2>&1
+curl -s -X POST http://localhost:3000/api/public/leads -H "Content-Type: application/json" -d "{\"name\":\"Teste Sistema\",\"email\":\"teste@sistema.com\",\"source\":\"test\"}" >nul 2>&1
 if not errorlevel 1 (
     echo ✅ Criacao de lead: OK
 ) else (

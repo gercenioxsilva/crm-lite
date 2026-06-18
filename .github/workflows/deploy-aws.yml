@@ -30,6 +30,21 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Validate monorepo build
+      run: npm run build:all
+
+    - name: Validate leads tests
+      run: npm run test:leads
+
     - name: Set environment variables
       run: |
         echo "ENVIRONMENT=${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}" >> $GITHUB_ENV
@@ -105,7 +120,7 @@ jobs:
     - name: Update ECS services
       run: |
         # Only update services that exist in our current Terraform configuration
-        services=("api-gateway" "auth" "leads")
+        services=("api-gateway" "auth" "leads" "email" "whatsapp" "landing" "backoffice")
         
         for service in "${services[@]}"; do
           if aws ecs describe-services --cluster $ECS_CLUSTER-$ENVIRONMENT --services $ECS_SERVICE_PREFIX-$service-$ENVIRONMENT >/dev/null 2>&1; then
@@ -121,7 +136,7 @@ jobs:
 
     - name: Wait for deployment
       run: |
-        services=("api-gateway" "auth" "leads")
+        services=("api-gateway" "auth" "leads" "email" "whatsapp" "landing" "backoffice")
         
         for service in "${services[@]}"; do
           if aws ecs describe-services --cluster $ECS_CLUSTER-$ENVIRONMENT --services $ECS_SERVICE_PREFIX-$service-$ENVIRONMENT >/dev/null 2>&1; then
