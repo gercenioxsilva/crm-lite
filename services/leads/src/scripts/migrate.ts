@@ -9,15 +9,19 @@ if (process.env.DATABASE_URL) {
   } catch { /* malformed URL — pg will surface a clearer error */ }
 }
 
+const connectionTimeoutMillis = parseInt(process.env.DB_CONNECT_TIMEOUT_MS || '10000', 10);
+const dbConnectMaxRetries = parseInt(process.env.DB_CONNECT_MAX_RETRIES || '30', 10);
+const dbConnectRetryDelayMs = parseInt(process.env.DB_CONNECT_RETRY_DELAY_MS || '2000', 10);
+
 const pool = process.env.DATABASE_URL
-  ? new Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 5000 })
+  ? new Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis })
   : new Pool({
       host: process.env.POSTGRES_HOST || 'db',
       port: parseInt(process.env.POSTGRES_PORT || '5432'),
       database: process.env.POSTGRES_DB || 'quiz',
       user: process.env.POSTGRES_USER || 'quiz',
       password: process.env.POSTGRES_PASSWORD || 'quiz',
-      connectionTimeoutMillis: 5000,
+      connectionTimeoutMillis,
     });
 
 const migrations = [
@@ -31,18 +35,31 @@ const migrations = [
   '0010_document_field.sql',
 ];
 
-async function waitForDatabase(maxRetries = 30, delay = 2000) {
+function connectionErrorSummary(error: unknown): string {
+  if (error instanceof Error) {
+    const code = (error as any).code ? ` code=${(error as any).code}` : '';
+    return `${error.name}${code}: ${error.message}`;
+  }
+
+  return String(error);
+}
+
+async function waitForDatabase(maxRetries = dbConnectMaxRetries, delay = dbConnectRetryDelayMs) {
+  let lastError = 'unknown error';
+
   for (let i = 0; i < maxRetries; i++) {
     try {
       await pool.query('SELECT 1');
       console.log('Database connection established');
       return;
     } catch (error) {
-      console.log(`Waiting for database... (${i + 1}/${maxRetries})`);
+      lastError = connectionErrorSummary(error);
+      console.log(`Waiting for database... (${i + 1}/${maxRetries}) Last error: ${lastError}`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
-  throw new Error('Failed to connect to database after maximum retries');
+
+  throw new Error(`Failed to connect to database after maximum retries. Last error: ${lastError}`);
 }
 
 async function ensureMigrationTable() {
