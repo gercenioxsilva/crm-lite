@@ -127,7 +127,7 @@ resource "aws_lambda_function_url" "auth" {
   cors {
     allow_credentials = false
     allow_headers     = ["authorization", "content-type"]
-    allow_methods     = ["GET", "POST", "OPTIONS"]
+    allow_methods     = ["*"]
     allow_origins     = ["*"]
     max_age           = 300
   }
@@ -149,7 +149,6 @@ resource "aws_lambda_function" "email" {
       NODE_ENV           = var.environment
       MONGODB_URL        = "mongodb://${aws_docdb_cluster.main.master_username}:${aws_docdb_cluster.main.master_password}@${aws_docdb_cluster.main.endpoint}:27017"
       MONGODB_DB         = "crm_email"
-      AWS_REGION         = var.aws_region
       SQS_QUEUE_URL      = aws_sqs_queue.email_queue.url
       INTERNAL_API_TOKEN = var.internal_api_token
     }
@@ -180,7 +179,7 @@ resource "aws_lambda_function_url" "email" {
   cors {
     allow_credentials = false
     allow_headers     = ["authorization", "content-type"]
-    allow_methods     = ["GET", "POST", "OPTIONS"]
+    allow_methods     = ["*"]
     allow_origins     = ["*"]
     max_age           = 300
   }
@@ -241,7 +240,7 @@ resource "aws_lambda_function_url" "whatsapp" {
   cors {
     allow_credentials = false
     allow_headers     = ["authorization", "content-type"]
-    allow_methods     = ["GET", "POST", "OPTIONS"]
+    allow_methods     = ["*"]
     allow_origins     = ["*"]
     max_age           = 300
   }

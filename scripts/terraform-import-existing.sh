@@ -263,8 +263,71 @@ ecs_log_group="$(aws_text logs describe-log-groups \
 email_log_group="$(aws_text logs describe-log-groups \
   --log-group-name-prefix "/aws/lambda/crm-email-${ENVIRONMENT}" \
   --query "logGroups[?logGroupName=='/aws/lambda/crm-email-${ENVIRONMENT}'].logGroupName | [0]")"
+auth_log_group="$(aws_text logs describe-log-groups \
+  --log-group-name-prefix "/aws/lambda/crm-auth-${ENVIRONMENT}" \
+  --query "logGroups[?logGroupName=='/aws/lambda/crm-auth-${ENVIRONMENT}'].logGroupName | [0]")"
+whatsapp_log_group="$(aws_text logs describe-log-groups \
+  --log-group-name-prefix "/aws/lambda/crm-whatsapp-${ENVIRONMENT}" \
+  --query "logGroups[?logGroupName=='/aws/lambda/crm-whatsapp-${ENVIRONMENT}'].logGroupName | [0]")"
 import_if_missing "aws_cloudwatch_log_group.ecs" "$ecs_log_group"
 import_if_missing "aws_cloudwatch_log_group.email" "$email_log_group"
+import_if_missing "aws_cloudwatch_log_group.auth_lambda" "$auth_log_group"
+import_if_missing "aws_cloudwatch_log_group.whatsapp_lambda" "$whatsapp_log_group"
+
+lambda_role_name="$(aws_text iam get-role \
+  --role-name "crmLambdaExecutionRole-${ENVIRONMENT}" \
+  --query 'Role.RoleName')"
+import_if_missing "aws_iam_role.lambda_execution_role" "$lambda_role_name"
+
+if [ -n "$lambda_role_name" ] && [ "$lambda_role_name" != "None" ]; then
+  lambda_basic_policy="$(aws_text iam list-attached-role-policies \
+    --role-name "$lambda_role_name" \
+    --query "AttachedPolicies[?PolicyArn=='arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'].PolicyArn | [0]")"
+  if [ -n "$lambda_basic_policy" ] && [ "$lambda_basic_policy" != "None" ]; then
+    import_if_missing "aws_iam_role_policy_attachment.lambda_basic_execution" "${lambda_role_name}/arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+  fi
+
+  lambda_vpc_policy="$(aws_text iam list-attached-role-policies \
+    --role-name "$lambda_role_name" \
+    --query "AttachedPolicies[?PolicyArn=='arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole'].PolicyArn | [0]")"
+  if [ -n "$lambda_vpc_policy" ] && [ "$lambda_vpc_policy" != "None" ]; then
+    import_if_missing "aws_iam_role_policy_attachment.lambda_vpc_execution" "${lambda_role_name}/arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+  fi
+
+  lambda_app_policy_name="$(aws_text iam get-role-policy \
+    --role-name "$lambda_role_name" \
+    --policy-name "crmLambdaAppPolicy-${ENVIRONMENT}" \
+    --query 'PolicyName')"
+  if [ -n "$lambda_app_policy_name" ] && [ "$lambda_app_policy_name" != "None" ]; then
+    import_if_missing "aws_iam_role_policy.lambda_app_policy" "${lambda_role_name}:crmLambdaAppPolicy-${ENVIRONMENT}"
+  fi
+fi
+
+for pair in \
+  "aws_lambda_function.auth:crm-auth-${ENVIRONMENT}" \
+  "aws_lambda_function.email:crm-email-${ENVIRONMENT}" \
+  "aws_lambda_function.whatsapp:crm-whatsapp-${ENVIRONMENT}"; do
+  address="${pair%%:*}"
+  function_name="${pair#*:}"
+  found_function="$(aws_text lambda get-function \
+    --function-name "$function_name" \
+    --query 'Configuration.FunctionName')"
+  import_if_missing "$address" "$found_function"
+done
+
+for pair in \
+  "aws_lambda_function_url.auth:crm-auth-${ENVIRONMENT}" \
+  "aws_lambda_function_url.email:crm-email-${ENVIRONMENT}" \
+  "aws_lambda_function_url.whatsapp:crm-whatsapp-${ENVIRONMENT}"; do
+  address="${pair%%:*}"
+  function_name="${pair#*:}"
+  found_url="$(aws_text lambda get-function-url-config \
+    --function-name "$function_name" \
+    --query 'FunctionUrl')"
+  if [ -n "$found_url" ] && [ "$found_url" != "None" ]; then
+    import_if_missing "$address" "$function_name"
+  fi
+done
 
 db_subnet_group_name="$(aws_text rds describe-db-subnet-groups \
   --query "DBSubnetGroups[?starts_with(DBSubnetGroupName, 'crm-db-${ENVIRONMENT}-') && VpcId=='${vpc_id}'].DBSubnetGroupName | [0]")"

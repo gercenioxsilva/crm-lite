@@ -89,7 +89,9 @@ jobs:
 
     - name: Import Existing Infrastructure
       working-directory: ./terraform
-      run: bash ../scripts/terraform-import-existing.sh "${{ github.event.inputs.environment }}"
+      run: |
+        bash ../scripts/terraform-import-existing.sh "${{ github.event.inputs.environment }}"
+        bash ../scripts/cleanup-legacy-alb-target-groups.sh "${{ github.event.inputs.environment }}"
 
     - name: Terraform Plan
       if: github.event.inputs.destroy == 'false'
