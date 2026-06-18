@@ -18,7 +18,7 @@ state_has() {
 }
 
 state_id() {
-  terraform state show "$1" 2>/dev/null | awk -F= '/^id[[:space:]]+=/ { gsub(/[[:space:]]+/, "", $2); print $2; exit }' || true
+  terraform state show "$1" 2>/dev/null | awk -F= '/^id[[:space:]]+=/ { gsub(/[[:space:]\"]+/, "", $2); print $2; exit }' || true
 }
 
 state_rm_if_id_equals() {
