@@ -73,6 +73,12 @@ variable "whatsapp_verify_token" {
   sensitive   = true
 }
 
+variable "reset_schema" {
+  description = "Set to 'true' to drop and recreate the public schema before running migrations. DESTRUCTIVE — use only when the DB has no important data. Set back to 'false' after the first successful deployment."
+  type        = string
+  default     = "false"
+}
+
 # Data sources
 data "aws_availability_zones" "available" {
   state = "available"
