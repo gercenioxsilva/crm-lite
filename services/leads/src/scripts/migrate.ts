@@ -2,14 +2,22 @@ import { Pool } from 'pg';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
+if (process.env.DATABASE_URL) {
+  try {
+    const u = new URL(process.env.DATABASE_URL);
+    console.log(`DB target: ${u.hostname}:${u.port || 5432}${u.pathname}`);
+  } catch { /* malformed URL — pg will surface a clearer error */ }
+}
+
 const pool = process.env.DATABASE_URL
-  ? new Pool({ connectionString: process.env.DATABASE_URL })
+  ? new Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 5000 })
   : new Pool({
       host: process.env.POSTGRES_HOST || 'db',
       port: parseInt(process.env.POSTGRES_PORT || '5432'),
       database: process.env.POSTGRES_DB || 'quiz',
       user: process.env.POSTGRES_USER || 'quiz',
       password: process.env.POSTGRES_PASSWORD || 'quiz',
+      connectionTimeoutMillis: 5000,
     });
 
 const migrations = [

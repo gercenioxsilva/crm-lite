@@ -25,6 +25,7 @@ resource "aws_ecs_task_definition" "migrate" {
           "awslogs-group"         = aws_cloudwatch_log_group.ecs.name
           "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "migrate"
+          "awslogs-create-group"  = "true"
         }
       }
     }
