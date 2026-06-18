@@ -143,6 +143,18 @@ jobs:
         terraform plan -var="environment=$ENVIRONMENT" -var="image_tag=$IMAGE_TAG"
         terraform apply -auto-approve -parallelism=5 -var="environment=$ENVIRONMENT" -var="image_tag=$IMAGE_TAG"
 
+        expected_db_identifier="crm-postgres-${ENVIRONMENT}-${TF_VAR_database_rebuild_token}"
+        migrate_db_url=$(aws ecs describe-task-definition \
+          --task-definition "crm-migrate-${ENVIRONMENT}" \
+          --query "taskDefinition.containerDefinitions[?name=='migrate'].environment[?name=='DATABASE_URL'].value | [0]" \
+          --output text)
+
+        if ! printf '%s' "$migrate_db_url" | grep -q "$expected_db_identifier"; then
+          echo "Migration task definition is not using the expected clean MVP database (${expected_db_identifier})."
+          echo "Refusing to run migrations against the legacy database. Check Terraform state import/removal."
+          exit 1
+        fi
+
     - name: Run database migrations
       env:
         MIGRATIONS_REQUIRED: "true"
