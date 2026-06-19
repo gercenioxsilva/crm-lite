@@ -5,7 +5,7 @@ export function Header() {
     <AppBar 
       position="sticky" 
       sx={{ 
-        backgroundColor: 'rgba(7,17,19,.68)', 
+        backgroundColor: 'rgba(7,17,19,.68)',
         backdropFilter: 'saturate(140%) blur(10px)',
         borderBottom: '1px solid rgba(148,163,184,.18)',
         boxShadow: 'none'
