@@ -483,6 +483,7 @@ Antes de considerar pronto para AWS:
 - Demo MVP: `scripts/validate-demo-mvp.sh` e o criterio final do deploy. Ele cria um lead via `/api/public/leads` e confirma leitura via `/api/backoffice/leads` com `mock-admin-token`.
 - Fallback silencioso no api-gateway: a funcao `createLead` nao deve ter bloco `catch` retornando mock; erros do servico de leads devem propagar como HTTP 502 com detalhes. Qualquer rota que chame um servico interno deve falhar visivelmente, nunca com `[]` ou mock.
 - Mismatch camelCase/snake_case: o api-gateway envia os campos para o servico de leads em camelCase (`birthDate`, `termsAccepted`, `consentLgpd`, `addressLine`, `monthlyIncome`); o servico de leads le do `body` em camelCase. Nao misturar convencoes entre as camadas.
+- Backoffice em CloudFront: componentes React nao devem chamar `http://localhost:3000/...` diretamente. Use `services/backoffice-react/src/services/api.ts` e `getApiUrl()`, sempre com path `/api/backoffice/...`.
 
 ## Regras De Manutencao
 
@@ -521,6 +522,7 @@ operacional, publicando apenas prod na AWS.
 - Antes de finalizar: npm run build:all, npm run test:leads, terraform validate se houver .tf.
 - Em AWS, toda conexao PostgreSQL deve usar `PGSSLMODE=require`; isso vale para migration, leads runtime, auth Lambda e scripts de bootstrap.
 - A landing publica deve permanecer focada em captacao B2B por CNPJ. Nao reintroduza botao Google/login social sem decisao explicita.
+- No backoffice, toda chamada HTTP deve passar pelo `apiService` ou por `getApiUrl()`. Nunca use localhost hardcoded em componentes de tela.
 
 === SKILLS DE ARQUITETURA ===
 
