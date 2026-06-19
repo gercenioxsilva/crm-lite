@@ -93,6 +93,10 @@ class ApiService {
     return await this.fetchWithAuth(`${API_BASE_URL}/backoffice/pipeline`)
   }
 
+  async getActivities() {
+    return await this.fetchWithAuth(`${API_BASE_URL}/backoffice/activities`)
+  }
+
   async createLead(leadData: any) {
     return this.fetchWithAuth(`${API_BASE_URL}/backoffice/leads`, {
       method: 'POST',

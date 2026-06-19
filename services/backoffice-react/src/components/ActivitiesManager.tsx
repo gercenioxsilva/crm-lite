@@ -8,6 +8,7 @@ import {
 import {
   Add, Phone, Email, VideoCall, Event, Note, CheckCircle, Cancel, Refresh
 } from '@mui/icons-material'
+import { apiService } from '../services/api'
 
 interface Activity {
   id: string
@@ -33,7 +34,8 @@ export function ActivitiesManager() {
   const [activities, setActivities] = useState<Activity[]>([])
   const [leads, setLeads] = useState<Lead[]>([])
   const [openDialog, setOpenDialog] = useState(false)
-  const [, setLoading] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState('')
   const [newActivity, setNewActivity] = useState({
     leadId: '',
     type: 'call',
@@ -47,32 +49,20 @@ export function ActivitiesManager() {
   const fetchData = async () => {
     try {
       setLoading(true)
-      const token = localStorage.getItem('auth_token') || 'mock-admin-token'
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
+      setLoadError('')
 
-      // Fetch leads for dropdown
-      const leadsRes = await fetch('http://localhost:3000/backoffice/leads', { headers })
-      if (leadsRes.ok) {
-        const leadsData = await leadsRes.json()
-        setLeads(leadsData.slice(0, 50))
-      }
+      const [leadsData, activitiesData] = await Promise.all([
+        apiService.getLeads(),
+        apiService.getActivities(),
+      ])
 
-      // Fetch activities with timestamp to avoid cache
-      const activitiesRes = await fetch(`http://localhost:3000/backoffice/activities?t=${Date.now()}`, { headers })
-      if (activitiesRes.ok) {
-        const activitiesData = await activitiesRes.json()
-        console.log('Activities loaded:', activitiesData.length)
-        setActivities(Array.isArray(activitiesData) ? activitiesData : [])
-      } else {
-        console.log('No activities response, setting empty array')
-        setActivities([])
-      }
+      setLeads(Array.isArray(leadsData) ? leadsData.slice(0, 100) : [])
+      setActivities(Array.isArray(activitiesData) ? activitiesData : [])
 
     } catch (err) {
       console.error('Error fetching data:', err)
+      setLoadError(err instanceof Error ? err.message : 'Erro ao carregar dados')
+      setLeads([])
       setActivities([])
     } finally {
       setLoading(false)
@@ -86,7 +76,6 @@ export function ActivitiesManager() {
         return
       }
 
-      const token = localStorage.getItem('auth_token') || 'mock-admin-token'
       const payload = {
         leadId: newActivity.leadId,
         type: newActivity.type,
@@ -97,43 +86,20 @@ export function ActivitiesManager() {
         duration_minutes: newActivity.duration_minutes ? parseInt(newActivity.duration_minutes) : null
       }
       
-      console.log('Creating activity with payload:', payload)
-      
-      const response = await fetch('http://localhost:3000/backoffice/activities', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
+      await apiService.createActivity(payload)
+
+      setOpenDialog(false)
+      setNewActivity({
+        leadId: '',
+        type: 'call',
+        description: '',
+        outcome: '',
+        follow_up_required: false,
+        next_action: '',
+        duration_minutes: ''
       })
 
-      console.log('Response status:', response.status)
-      
-      if (response.ok) {
-        const result = await response.json()
-        console.log('Activity created:', result)
-        
-        setOpenDialog(false)
-        setNewActivity({
-          leadId: '',
-          type: 'call',
-          description: '',
-          outcome: '',
-          follow_up_required: false,
-          next_action: '',
-          duration_minutes: ''
-        })
-        
-        // Force refresh after a short delay
-        setTimeout(() => {
-          fetchData()
-        }, 1000)
-      } else {
-        const errorData = await response.json()
-        console.error('Error creating activity:', errorData)
-        alert('Erro ao criar atividade: ' + (errorData.error || 'Erro desconhecido'))
-      }
+      await fetchData()
     } catch (err) {
       console.error('Error creating activity:', err)
       alert('Erro ao criar atividade: ' + (err instanceof Error ? err.message : 'Erro desconhecido'))
@@ -180,8 +146,9 @@ export function ActivitiesManager() {
             variant="outlined"
             startIcon={<Refresh />}
             onClick={fetchData}
+            disabled={loading}
           >
-            Atualizar
+            {loading ? 'Atualizando...' : 'Atualizar'}
           </Button>
           <Button
             variant="contained"
@@ -252,6 +219,11 @@ export function ActivitiesManager() {
           <Typography variant="h6" gutterBottom>
             Atividades Recentes
           </Typography>
+          {loadError && (
+            <Typography variant="body2" color="error" sx={{ mb: 2 }}>
+              Falha ao carregar leads/atividades: {loadError}
+            </Typography>
+          )}
           <TableContainer component={Paper}>
             <Table>
               <TableHead>
@@ -353,9 +325,15 @@ export function ActivitiesManager() {
               <FormControl fullWidth>
                 <InputLabel>Lead</InputLabel>
                 <Select
+                  label="Lead"
                   value={newActivity.leadId}
                   onChange={(e) => setNewActivity({ ...newActivity, leadId: e.target.value })}
                 >
+                  {leads.length === 0 && (
+                    <MenuItem value="" disabled>
+                      {loading ? 'Carregando leads...' : 'Nenhum lead disponivel'}
+                    </MenuItem>
+                  )}
                   {leads.map((lead) => (
                     <MenuItem key={lead.id} value={lead.id}>
                       {lead.name} - {lead.email}
@@ -368,6 +346,7 @@ export function ActivitiesManager() {
               <FormControl fullWidth>
                 <InputLabel>Tipo de Atividade</InputLabel>
                 <Select
+                  label="Tipo de Atividade"
                   value={newActivity.type}
                   onChange={(e) => setNewActivity({ ...newActivity, type: e.target.value })}
                 >
@@ -414,6 +393,7 @@ export function ActivitiesManager() {
               <FormControl fullWidth>
                 <InputLabel>Requer Follow-up?</InputLabel>
                 <Select
+                  label="Requer Follow-up?"
                   value={newActivity.follow_up_required ? 'true' : 'false'}
                   onChange={(e) => setNewActivity({ ...newActivity, follow_up_required: e.target.value === 'true' })}
                 >
