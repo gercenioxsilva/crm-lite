@@ -119,6 +119,10 @@ class ApiService {
     return await this.fetchWithAuth(`${API_BASE_URL}/backoffice/activities`)
   }
 
+  async getCustomFields() {
+    return await this.fetchWithAuth(`${API_BASE_URL}/backoffice/custom-fields`)
+  }
+
   async createLead(leadData: any) {
     return this.fetchWithAuth(`${API_BASE_URL}/backoffice/leads`, {
       method: 'POST',
@@ -149,6 +153,26 @@ class ApiService {
     return this.fetchWithAuth(`${API_BASE_URL}/backoffice/activities`, {
       method: 'POST',
       body: JSON.stringify(activityData)
+    })
+  }
+
+  async createCustomField(fieldData: any) {
+    return this.fetchWithAuth(`${API_BASE_URL}/backoffice/custom-fields`, {
+      method: 'POST',
+      body: JSON.stringify(fieldData)
+    })
+  }
+
+  async updateCustomField(id: string, fieldData: any) {
+    return this.fetchWithAuth(`${API_BASE_URL}/backoffice/custom-fields/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(fieldData)
+    })
+  }
+
+  async deleteCustomField(id: string) {
+    return this.fetchWithAuth(`${API_BASE_URL}/backoffice/custom-fields/${id}`, {
+      method: 'DELETE'
     })
   }
 }

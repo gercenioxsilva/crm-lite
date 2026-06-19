@@ -1,12 +1,36 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import {
-  Box, Card, CardContent, Typography, Button, Dialog, DialogTitle,
-  DialogContent, DialogActions, TextField, Grid, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, Paper, Chip, MenuItem,
-  Select, FormControl, InputLabel, Switch, FormControlLabel, IconButton,
-  CircularProgress, Alert
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  FormControlLabel,
+  Grid,
+  IconButton,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  Switch,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
 } from '@mui/material'
-import { Add, Edit, Delete, DragIndicator } from '@mui/icons-material'
+import { Add, Delete, DragIndicator, Edit } from '@mui/icons-material'
+import { apiService } from '../services/api'
 
 interface CustomField {
   id: string
@@ -17,9 +41,40 @@ interface CustomField {
   placeholder?: string
   help_text?: string
   options?: { options: string[] }
-  validation_rules?: any
+  validation_rules?: unknown
   display_order: number
   is_active: boolean
+}
+
+const emptyField = {
+  name: '',
+  label: '',
+  field_type: 'text',
+  is_required: false,
+  placeholder: '',
+  help_text: '',
+  options: [] as string[],
+  display_order: 0,
+}
+
+const fieldTypes = [
+  { value: 'text', label: 'Texto' },
+  { value: 'email', label: 'Email' },
+  { value: 'phone', label: 'Telefone' },
+  { value: 'number', label: 'Numero' },
+  { value: 'select', label: 'Selecao' },
+  { value: 'checkbox', label: 'Checkbox' },
+  { value: 'textarea', label: 'Texto longo' },
+  { value: 'date', label: 'Data' },
+]
+
+function slugifyLabel(label: string) {
+  return label
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
 }
 
 export function CustomFieldsManager() {
@@ -27,106 +82,58 @@ export function CustomFieldsManager() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [openDialog, setOpenDialog] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [editingField, setEditingField] = useState<CustomField | null>(null)
-  const [newField, setNewField] = useState({
-    name: '',
-    label: '',
-    field_type: 'text',
-    is_required: false,
-    placeholder: '',
-    help_text: '',
-    options: [] as string[],
-    display_order: 0
-  })
-
-  const fieldTypes = [
-    { value: 'text', label: '📝 Texto' },
-    { value: 'email', label: '📧 Email' },
-    { value: 'phone', label: '📞 Telefone' },
-    { value: 'number', label: '🔢 Número' },
-    { value: 'select', label: '📋 Seleção' },
-    { value: 'checkbox', label: '☑️ Checkbox' },
-    { value: 'textarea', label: '📄 Texto Longo' },
-    { value: 'date', label: '📅 Data' }
-  ]
+  const [newField, setNewField] = useState(emptyField)
 
   const fetchFields = async () => {
     try {
       setLoading(true)
       setError(null)
-      console.log('Fetching custom fields from frontend...')
-      const token = localStorage.getItem('auth_token') || 'mock-admin-token'
-      const response = await fetch('http://localhost:3000/backoffice/custom-fields', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      console.log('Response status:', response.status)
-      
-      if (response.ok) {
-        const data = await response.json()
-        console.log('Custom fields data:', data)
-        setFields(Array.isArray(data) ? data : [])
-      } else {
-        const errorData = await response.text()
-        console.error('API Error:', response.status, errorData)
-        setError(`Erro ${response.status}: ${errorData}`)
-        setFields([])
-      }
-    } catch (error) {
-      console.error('Error fetching custom fields:', error)
-      setError('Erro de conexão')
+      const data = await apiService.getCustomFields()
+      setFields(Array.isArray(data) ? data : [])
+    } catch (err) {
+      console.error('Error fetching custom fields:', err)
+      setError('Todo mundo erra dessa vez, foi os nossos engenheiros.')
       setFields([])
     } finally {
       setLoading(false)
     }
   }
 
+  const resetForm = () => {
+    setEditingField(null)
+    setNewField(emptyField)
+  }
+
   const handleSaveField = async () => {
     try {
-      const token = localStorage.getItem('auth_token') || 'mock-admin-token'
+      setSaving(true)
+      setError(null)
+
       const payload = {
         ...newField,
-        name: newField.name || newField.label.toLowerCase().replace(/\s+/g, '_'),
-        options: newField.field_type === 'select' && newField.options.length > 0 
-          ? { options: newField.options } 
-          : null
+        name: newField.name || slugifyLabel(newField.label),
+        options: newField.field_type === 'select'
+          ? { options: newField.options.filter(Boolean) }
+          : null,
+        validation_rules: null,
       }
 
-      const url = editingField 
-        ? `http://localhost:3000/backoffice/custom-fields/${editingField.id}`
-        : 'http://localhost:3000/backoffice/custom-fields'
-      
-      const method = editingField ? 'PUT' : 'POST'
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      })
-
-      if (response.ok) {
-        setOpenDialog(false)
-        setEditingField(null)
-        setNewField({
-          name: '',
-          label: '',
-          field_type: 'text',
-          is_required: false,
-          placeholder: '',
-          help_text: '',
-          options: [],
-          display_order: 0
-        })
-        await fetchFields()
+      if (editingField) {
+        await apiService.updateCustomField(editingField.id, payload)
+      } else {
+        await apiService.createCustomField(payload)
       }
-    } catch (error) {
-      console.error('Error saving field:', error)
+
+      setOpenDialog(false)
+      resetForm()
+      await fetchFields()
+    } catch (err) {
+      console.error('Error saving custom field:', err)
+      setError('Todo mundo erra dessa vez, foi os nossos engenheiros.')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -140,51 +147,38 @@ export function CustomFieldsManager() {
       placeholder: field.placeholder || '',
       help_text: field.help_text || '',
       options: field.options?.options || [],
-      display_order: field.display_order
+      display_order: field.display_order,
     })
     setOpenDialog(true)
   }
 
   const handleDeleteField = async (fieldId: string) => {
-    if (!confirm('Tem certeza que deseja excluir este campo?')) return
+    if (!window.confirm('Tem certeza que deseja excluir este campo?')) return
 
     try {
-      const token = localStorage.getItem('auth_token') || 'mock-admin-token'
-      const response = await fetch(`http://localhost:3000/backoffice/custom-fields/${fieldId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (response.ok) {
-        await fetchFields()
-      }
-    } catch (error) {
-      console.error('Error deleting field:', error)
+      setError(null)
+      await apiService.deleteCustomField(fieldId)
+      await fetchFields()
+    } catch (err) {
+      console.error('Error deleting custom field:', err)
+      setError('Todo mundo erra dessa vez, foi os nossos engenheiros.')
     }
   }
 
   const addOption = () => {
-    setNewField({
-      ...newField,
-      options: [...newField.options, '']
-    })
+    setNewField({ ...newField, options: [...newField.options, ''] })
   }
 
   const updateOption = (index: number, value: string) => {
-    const updatedOptions = [...newField.options]
-    updatedOptions[index] = value
-    setNewField({
-      ...newField,
-      options: updatedOptions
-    })
+    const options = [...newField.options]
+    options[index] = value
+    setNewField({ ...newField, options })
   }
 
   const removeOption = (index: number) => {
     setNewField({
       ...newField,
-      options: newField.options.filter((_, i) => i !== index)
+      options: newField.options.filter((_, currentIndex) => currentIndex !== index),
     })
   }
 
@@ -196,45 +190,27 @@ export function CustomFieldsManager() {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
         <CircularProgress />
-        <Typography sx={{ ml: 2 }}>Carregando campos customizáveis...</Typography>
-      </Box>
-    )
-  }
-
-  if (error) {
-    return (
-      <Box>
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-        <Button onClick={fetchFields} variant="outlined">
-          Tentar Novamente
-        </Button>
+        <Typography sx={{ ml: 2 }}>Carregando campos customizaveis...</Typography>
       </Box>
     )
   }
 
   return (
     <Box>
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h5">
-          🎛️ Campos Customizáveis
-        </Typography>
+        <Typography variant="h5">Campos Customizaveis</Typography>
         <Button
           variant="contained"
           startIcon={<Add />}
           onClick={() => {
-            setEditingField(null)
-            setNewField({
-              name: '',
-              label: '',
-              field_type: 'text',
-              is_required: false,
-              placeholder: '',
-              help_text: '',
-              options: [],
-              display_order: fields.length
-            })
+            resetForm()
+            setNewField({ ...emptyField, display_order: fields.length })
             setOpenDialog(true)
           }}
         >
@@ -245,7 +221,7 @@ export function CustomFieldsManager() {
       <Card>
         <CardContent>
           <Typography variant="h6" gutterBottom>
-            Campos do Formulário de Captação
+            Campos do formulario de captacao
           </Typography>
           <TableContainer component={Paper}>
             <Table>
@@ -254,9 +230,9 @@ export function CustomFieldsManager() {
                   <TableCell>Ordem</TableCell>
                   <TableCell>Nome</TableCell>
                   <TableCell>Tipo</TableCell>
-                  <TableCell>Obrigatório</TableCell>
+                  <TableCell>Obrigatorio</TableCell>
                   <TableCell>Status</TableCell>
-                  <TableCell align="right">Ações</TableCell>
+                  <TableCell align="right">Acoes</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -271,25 +247,23 @@ export function CustomFieldsManager() {
                       </Box>
                     </TableCell>
                     <TableCell>
-                      <Box>
-                        <Typography variant="body2" fontWeight="bold">
-                          {field.label}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {field.name}
-                        </Typography>
-                      </Box>
+                      <Typography variant="body2" fontWeight="bold">
+                        {field.label}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {field.name}
+                      </Typography>
                     </TableCell>
                     <TableCell>
                       <Chip
-                        label={fieldTypes.find(t => t.value === field.field_type)?.label || field.field_type}
+                        label={fieldTypes.find((type) => type.value === field.field_type)?.label || field.field_type}
                         size="small"
                         variant="outlined"
                       />
                     </TableCell>
                     <TableCell>
                       <Chip
-                        label={field.is_required ? 'Sim' : 'Não'}
+                        label={field.is_required ? 'Sim' : 'Nao'}
                         color={field.is_required ? 'error' : 'default'}
                         size="small"
                       />
@@ -317,11 +291,8 @@ export function CustomFieldsManager() {
         </CardContent>
       </Card>
 
-      {/* Create/Edit Field Dialog */}
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>
-          {editingField ? '✏️ Editar Campo' : '➕ Novo Campo'}
-        </DialogTitle>
+        <DialogTitle>{editingField ? 'Editar Campo' : 'Novo Campo'}</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12} md={6}>
@@ -329,7 +300,7 @@ export function CustomFieldsManager() {
                 fullWidth
                 label="Nome do Campo"
                 value={newField.label}
-                onChange={(e) => setNewField({ ...newField, label: e.target.value })}
+                onChange={(event) => setNewField({ ...newField, label: event.target.value })}
                 required
               />
             </Grid>
@@ -337,8 +308,9 @@ export function CustomFieldsManager() {
               <FormControl fullWidth>
                 <InputLabel>Tipo de Campo</InputLabel>
                 <Select
+                  label="Tipo de Campo"
                   value={newField.field_type}
-                  onChange={(e) => setNewField({ ...newField, field_type: e.target.value })}
+                  onChange={(event) => setNewField({ ...newField, field_type: event.target.value })}
                 >
                   {fieldTypes.map((type) => (
                     <MenuItem key={type.value} value={type.value}>
@@ -353,17 +325,17 @@ export function CustomFieldsManager() {
                 fullWidth
                 label="Placeholder"
                 value={newField.placeholder}
-                onChange={(e) => setNewField({ ...newField, placeholder: e.target.value })}
+                onChange={(event) => setNewField({ ...newField, placeholder: event.target.value })}
                 helperText="Texto de exemplo no campo"
               />
             </Grid>
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
-                label="Ordem de Exibição"
+                label="Ordem de Exibicao"
                 type="number"
                 value={newField.display_order}
-                onChange={(e) => setNewField({ ...newField, display_order: parseInt(e.target.value) || 0 })}
+                onChange={(event) => setNewField({ ...newField, display_order: parseInt(event.target.value) || 0 })}
               />
             </Grid>
             <Grid item xs={12}>
@@ -373,7 +345,7 @@ export function CustomFieldsManager() {
                 multiline
                 rows={2}
                 value={newField.help_text}
-                onChange={(e) => setNewField({ ...newField, help_text: e.target.value })}
+                onChange={(event) => setNewField({ ...newField, help_text: event.target.value })}
                 helperText="Texto explicativo que aparece abaixo do campo"
               />
             </Grid>
@@ -382,58 +354,45 @@ export function CustomFieldsManager() {
                 control={
                   <Switch
                     checked={newField.is_required}
-                    onChange={(e) => setNewField({ ...newField, is_required: e.target.checked })}
+                    onChange={(event) => setNewField({ ...newField, is_required: event.target.checked })}
                   />
                 }
-                label="Campo Obrigatório"
+                label="Campo Obrigatorio"
               />
             </Grid>
 
-            {/* Options for select fields */}
             {newField.field_type === 'select' && (
               <Grid item xs={12}>
                 <Typography variant="subtitle2" gutterBottom>
-                  Opções de Seleção
+                  Opcoes de Selecao
                 </Typography>
                 {newField.options.map((option, index) => (
                   <Box key={index} display="flex" gap={1} mb={1}>
                     <TextField
                       fullWidth
                       size="small"
-                      placeholder={`Opção ${index + 1}`}
+                      placeholder={`Opcao ${index + 1}`}
                       value={option}
-                      onChange={(e) => updateOption(index, e.target.value)}
+                      onChange={(event) => updateOption(index, event.target.value)}
                     />
-                    <Button
-                      variant="outlined"
-                      color="error"
-                      size="small"
-                      onClick={() => removeOption(index)}
-                    >
+                    <Button variant="outlined" color="error" size="small" onClick={() => removeOption(index)}>
                       Remover
                     </Button>
                   </Box>
                 ))}
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={addOption}
-                  startIcon={<Add />}
-                >
-                  Adicionar Opção
+                <Button variant="outlined" size="small" onClick={addOption} startIcon={<Add />}>
+                  Adicionar Opcao
                 </Button>
               </Grid>
             )}
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Cancelar</Button>
-          <Button 
-            onClick={handleSaveField} 
-            variant="contained"
-            disabled={!newField.label}
-          >
-            {editingField ? 'Atualizar' : 'Criar'} Campo
+          <Button onClick={() => setOpenDialog(false)} disabled={saving}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSaveField} variant="contained" disabled={!newField.label || saving}>
+            {saving ? 'Salvando...' : editingField ? 'Atualizar Campo' : 'Criar Campo'}
           </Button>
         </DialogActions>
       </Dialog>
