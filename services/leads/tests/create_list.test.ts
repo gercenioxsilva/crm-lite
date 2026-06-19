@@ -7,6 +7,7 @@ jest.mock('pg', () => ({
 }));
 
 import { buildServer } from '../src/infrastructure/server';
+import { drizzleLeadRows, leadRow } from './fixtures';
 
 describe('Leads API - create and list', () => {
   beforeEach(() => {
@@ -14,19 +15,15 @@ describe('Leads API - create and list', () => {
   });
 
   it('creates and lists leads through HTTP routes', async () => {
-    const createdLead = {
-      id: 'lead-1',
+    const createdLead = leadRow({
       name: 'Alice',
       email: 'a@example.com',
-      source: 'test',
-      status: 'new',
-      created_at: '2026-01-01T00:00:00.000Z'
-    };
+    });
 
     mockPool.query
-      .mockResolvedValueOnce({ rows: [createdLead] })
+      .mockResolvedValueOnce(drizzleLeadRows([createdLead]))
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [createdLead] });
+      .mockResolvedValueOnce(drizzleLeadRows([createdLead]));
 
     const app = buildServer();
     await app.ready();
