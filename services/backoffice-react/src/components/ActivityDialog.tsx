@@ -16,7 +16,7 @@ import {
   Box,
   Alert
 } from '@mui/material'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { apiService } from '../services/api'
 
 const activitySchema = z.object({
   type: z.enum(['call', 'email', 'meeting', 'note', 'task']),
@@ -56,7 +56,6 @@ const outcomeOptions = [
 export function ActivityDialog({ open, onClose, leadId, leadName }: ActivityDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const queryClient = useQueryClient()
 
   const { control, handleSubmit, reset, watch, formState: { errors } } = useForm<ActivityFormData>({
     resolver: zodResolver(activitySchema),
@@ -72,48 +71,25 @@ export function ActivityDialog({ open, onClose, leadId, leadName }: ActivityDial
 
   const activityType = watch('type')
 
-  const createActivityMutation = useMutation({
-    mutationFn: async (data: ActivityFormData) => {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/backoffice/activities`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        },
-        body: JSON.stringify({
-          leadId,
-          type: data.type,
-          description: data.description,
-          outcome: data.outcome,
-          follow_up_required: data.followUpRequired,
-          next_action: data.nextAction,
-          duration_minutes: data.durationMinutes,
-        })
-      })
-      
-      if (!response.ok) {
-        throw new Error('Erro ao criar atividade')
-      }
-      
-      return response.json()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] })
-      queryClient.invalidateQueries({ queryKey: ['pipeline-board'] })
-      queryClient.invalidateQueries({ queryKey: ['activities', leadId] })
-      onClose()
-      reset()
-    }
-  })
-
   const onSubmit = async (data: ActivityFormData) => {
     setIsSubmitting(true)
     setError(null)
 
     try {
-      await createActivityMutation.mutateAsync(data)
+      await apiService.createActivity({
+        leadId,
+        type: data.type,
+        description: data.description,
+        outcome: data.outcome || null,
+        follow_up_required: data.followUpRequired,
+        next_action: data.nextAction || null,
+        duration_minutes: data.durationMinutes || null,
+      })
+      onClose()
+      reset()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro desconhecido')
+      console.error('Error creating activity:', err)
+      setError('Todo mundo erra dessa vez, foi os nossos engenheiros.')
     } finally {
       setIsSubmitting(false)
     }

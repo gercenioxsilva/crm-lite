@@ -8,7 +8,7 @@ import {
 import {
   Add, Phone, Email, VideoCall, Event, Note, CheckCircle, Cancel, Refresh
 } from '@mui/icons-material'
-import { ApiError, apiService } from '../services/api'
+import { apiService } from '../services/api'
 
 interface Activity {
   id: string
@@ -46,19 +46,6 @@ const outcomeOptions = [
 type ActivityErrorDialog = {
   title: string
   message: string
-  code?: string
-  status?: number
-  details?: string
-}
-
-function formatErrorDetails(details: unknown): string | undefined {
-  if (!details) return undefined
-  if (typeof details === 'string') return details
-  try {
-    return JSON.stringify(details, null, 2)
-  } catch {
-    return String(details)
-  }
 }
 
 export function ActivitiesManager() {
@@ -104,11 +91,10 @@ export function ActivitiesManager() {
   const handleCreateActivity = async () => {
     try {
       if (!newActivity.leadId || !newActivity.description) {
-        setErrorDialog({
-          title: 'Dados incompletos',
-          message: 'Selecione um lead e adicione uma descricao para registrar a atividade.',
-          code: 'CRM_ACTIVITY_INVALID_FORM',
-        })
+      setErrorDialog({
+        title: 'Dados incompletos',
+        message: 'Selecione um lead e adicione uma descricao para registrar a atividade.',
+      })
         return
       }
 
@@ -140,12 +126,7 @@ export function ActivitiesManager() {
       console.error('Error creating activity:', err)
       setErrorDialog({
         title: 'Nao foi possivel criar a atividade',
-        message: err instanceof Error
-          ? err.message
-          : 'Todo mundo erra dessa vez, foi os nossos engenheiros.',
-        code: err instanceof ApiError ? err.code : 'CRM_ACTIVITY_UI_FAILED',
-        status: err instanceof ApiError ? err.status : undefined,
-        details: err instanceof ApiError ? formatErrorDetails(err.details) : undefined,
+        message: 'Todo mundo erra dessa vez, foi os nossos engenheiros.',
       })
     }
   }
@@ -483,36 +464,6 @@ export function ActivitiesManager() {
           <Alert severity="error" sx={{ mb: 2 }}>
             {errorDialog?.message || 'Todo mundo erra dessa vez, foi os nossos engenheiros.'}
           </Alert>
-          {(errorDialog?.code || errorDialog?.status || errorDialog?.details) && (
-            <Box
-              sx={{
-                p: 2,
-                borderRadius: 1,
-                bgcolor: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.12)'
-              }}
-            >
-              {errorDialog?.code && (
-                <Typography variant="caption" display="block" color="text.secondary">
-                  Codigo: {errorDialog.code}
-                </Typography>
-              )}
-              {errorDialog?.status && (
-                <Typography variant="caption" display="block" color="text.secondary">
-                  HTTP: {errorDialog.status}
-                </Typography>
-              )}
-              {errorDialog?.details && (
-                <Typography
-                  variant="caption"
-                  component="pre"
-                  sx={{ mt: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-word', m: 0 }}
-                >
-                  {errorDialog.details}
-                </Typography>
-              )}
-            </Box>
-          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setErrorDialog(null)} variant="contained">
