@@ -4,11 +4,28 @@ import { db, pool } from '../../db/client';
 import { activities, leadPipeline, leads, pipelines, stages } from '../../db/schema';
 
 const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID || '00000000-0000-0000-0000-000000000001';
+const ALLOWED_ACTIVITY_OUTCOMES = new Set([
+  'interested',
+  'not_interested',
+  'callback',
+  'meeting_scheduled',
+  'no_answer',
+  'completed',
+  'sent',
+  'opened',
+  'clicked',
+]);
 
 function tenantIdFromRequest(req: any, _required = true): string {
   const tenantId = req.headers['x-tenant-id'] || req.headers['X-Tenant-Id'];
   if (typeof tenantId === 'string' && tenantId.trim()) return tenantId;
   return DEFAULT_TENANT_ID;
+}
+
+function normalizeActivityOutcome(outcome: unknown): string | null {
+  if (typeof outcome !== 'string') return null;
+  const value = outcome.trim();
+  return ALLOWED_ACTIVITY_OUTCOMES.has(value) ? value : null;
 }
 
 export async function registerRoutes(app: FastifyInstance) {
@@ -48,6 +65,10 @@ export async function registerRoutes(app: FastifyInstance) {
         city: body.city || null,
         state: body.state || null,
         monthly_income: body.monthlyIncome != null ? String(body.monthlyIncome) : null,
+        lead_value: body.lead_value != null ? String(body.lead_value) : null,
+        expected_close_date: body.expected_close_date || null,
+        priority: body.priority || 'medium',
+        assigned_to: body.assigned_to || null,
         source: body.source || 'unknown',
         terms_accepted: body.termsAccepted || false,
         consent_lgpd: body.consentLgpd || false,
@@ -447,7 +468,7 @@ export async function registerRoutes(app: FastifyInstance) {
         type: body.type,
         subject: body.subject || body.description?.substring(0, 100) || null,
         description: body.description || null,
-        outcome: body.outcome || null,
+        outcome: normalizeActivityOutcome(body.outcome),
         duration_minutes: body.duration_minutes || null,
         follow_up_required: body.follow_up_required || false,
         next_action: body.next_action || null,
@@ -490,7 +511,7 @@ export async function registerRoutes(app: FastifyInstance) {
         type: body.type,
         subject: body.subject || body.description?.substring(0, 100) || null,
         description: body.description || null,
-        outcome: body.outcome || null,
+        outcome: normalizeActivityOutcome(body.outcome),
         duration_minutes: body.duration_minutes || null,
         follow_up_required: body.follow_up_required || false,
         next_action: body.next_action || null,

@@ -7,6 +7,7 @@ import {
 } from '@mui/material'
 import { MoreVert, Search, Add, Business, Person, AttachMoney, Phone, Email } from '@mui/icons-material'
 import { WhatsAppIntegration } from './WhatsAppIntegration'
+import { LeadFormDialog } from './LeadFormDialog'
 import { apiService } from '../services/api'
 
 interface Lead {
@@ -67,6 +68,8 @@ export function SimpleLeadsList() {
     lead_value: '',
     notes: ''
   })
+  const [leadFormOpen, setLeadFormOpen] = useState(false)
+  const [leadFormMode, setLeadFormMode] = useState<'create' | 'edit'>('create')
   const [whatsappDialog, setWhatsappDialog] = useState(false)
 
   const fetchLeads = async () => {
@@ -175,7 +178,15 @@ export function SimpleLeadsList() {
         <Typography variant="h4">
           Leads ({filteredLeads.length})
         </Typography>
-        <Button variant="contained" startIcon={<Add />}>
+        <Button
+          variant="contained"
+          startIcon={<Add />}
+          onClick={() => {
+            setSelectedLead(null)
+            setLeadFormMode('create')
+            setLeadFormOpen(true)
+          }}
+        >
           Novo Lead
         </Button>
       </Box>
@@ -379,6 +390,13 @@ export function SimpleLeadsList() {
           Ver Detalhes
         </MenuItem>
         <MenuItem onClick={() => {
+          setLeadFormMode('edit')
+          setLeadFormOpen(true)
+          setAnchorEl(null)
+        }}>
+          Editar Lead
+        </MenuItem>
+        <MenuItem onClick={() => {
           setQualification({
             priority: selectedLead?.priority || '',
             temperature: selectedLead?.temperature || '',
@@ -496,6 +514,17 @@ export function SimpleLeadsList() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <LeadFormDialog
+        open={leadFormOpen}
+        onClose={() => {
+          setLeadFormOpen(false)
+          setSelectedLead(null)
+          fetchLeads()
+        }}
+        lead={selectedLead}
+        mode={leadFormMode}
+      />
 
       {/* Dialog do WhatsApp */}
       <Dialog open={whatsappDialog} onClose={() => setWhatsappDialog(false)} maxWidth="sm" fullWidth>

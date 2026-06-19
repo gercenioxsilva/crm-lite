@@ -30,6 +30,19 @@ interface Lead {
   phone?: string
 }
 
+const outcomeOptions = [
+  { value: '', label: 'Nao informar' },
+  { value: 'interested', label: 'Interessado' },
+  { value: 'not_interested', label: 'Nao interessado' },
+  { value: 'callback', label: 'Retornar contato' },
+  { value: 'meeting_scheduled', label: 'Reuniao agendada' },
+  { value: 'no_answer', label: 'Sem resposta' },
+  { value: 'completed', label: 'Concluido' },
+  { value: 'sent', label: 'Email enviado' },
+  { value: 'opened', label: 'Email aberto' },
+  { value: 'clicked', label: 'Clique registrado' },
+]
+
 export function ActivitiesManager() {
   const [activities, setActivities] = useState<Activity[]>([])
   const [leads, setLeads] = useState<Lead[]>([])
@@ -371,14 +384,20 @@ export function ActivitiesManager() {
               />
             </Grid>
             <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Resultado/Outcome"
-                multiline
-                rows={2}
-                value={newActivity.outcome}
-                onChange={(e) => setNewActivity({ ...newActivity, outcome: e.target.value })}
-              />
+              <FormControl fullWidth>
+                <InputLabel>Resultado</InputLabel>
+                <Select
+                  label="Resultado"
+                  value={newActivity.outcome}
+                  onChange={(e) => setNewActivity({ ...newActivity, outcome: e.target.value })}
+                >
+                  {outcomeOptions.map((option) => (
+                    <MenuItem key={option.value || 'empty'} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Grid>
             <Grid item xs={12} md={6}>
               <TextField
