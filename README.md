@@ -14,7 +14,7 @@ O sistema e organizado como monorepo com workspaces npm:
 | `services/backoffice-react` | Backoffice administrativo do CRM |
 | `services/api-gateway` | Gateway HTTP, autenticacao de rotas e proxy para servicos internos |
 | `services/auth` | Autenticacao simples/JWT publicada como Lambda Function URL |
-| `services/leads` | Core do CRM: leads, pipeline, atividades e campos customizados |
+| `services/leads` | Core do CRM: leads, pipeline, atividades e campos customizados, com Drizzle ORM para acesso tipado ao PostgreSQL |
 | `services/email` | Envio e rastreio de emails com Lambda, SQS, SES e MongoDB/DocumentDB |
 | `services/whatsapp` | Integracao WhatsApp/Meta Business API publicada como Lambda Function URL |
 | `terraform` | Infraestrutura AWS atual baseada em ECS/Fargate |
@@ -66,6 +66,7 @@ Padroes mantidos:
 - Separacao por servico dentro de `services/*`.
 - `email` segue ports/adapters: `domain`, `application`, `infrastructure`, `interfaces`.
 - `leads` concentra regras operacionais do CRM e exposicao HTTP.
+- `leads` usa Drizzle ORM sobre `pg.Pool` para CRUD principal e schema tipado; SQL bruto permanece permitido em consultas agregadas ou migrations idempotentes ja estabilizadas.
 - Frontends sao React + Vite.
 - Deploy atual empacota servicos em containers Docker e publica via ECS/Fargate.
 
@@ -271,6 +272,8 @@ WhatsApp:
 ## Modelo De Dados Principal
 
 Todas as tabelas operacionais incluem `tenant_id uuid NOT NULL REFERENCES tenants(id)` para isolamento logico por cliente SaaS. Toda chamada interna do backoffice para `leads` deve carregar `x-tenant-id`; o `api-gateway` deriva esse valor do JWT.
+
+O schema tipado de runtime do `leads` fica em `services/leads/src/db/schema.ts` e o cliente Drizzle em `services/leads/src/db/client.ts`. Migrations continuam em `services/leads/src/scripts/migrate.ts` e `services/leads/db/migrations/*.sql`, sempre idempotentes, para preservar o fluxo de deploy AWS ja validado.
 
 ### Tabelas PostgreSQL
 
@@ -522,9 +525,11 @@ operacional, publicando apenas prod na AWS.
 - Antes de alterar Terraform/workflows, valide impacto em custo e deploy prod.
 - Antes de finalizar: npm run build:all, npm run test:leads, terraform validate se houver .tf.
 - Em AWS, toda conexao PostgreSQL deve usar `PGSSLMODE=require`; isso vale para migration, leads runtime, auth Lambda e scripts de bootstrap.
+- No `leads`, use Drizzle ORM (`services/leads/src/db/client.ts` e `services/leads/src/db/schema.ts`) para novos CRUDs e consultas simples; mantenha SQL bruto apenas para agregacoes complexas, bootstrap e migrations idempotentes.
 - A landing publica deve permanecer focada em captacao B2B por CNPJ. Nao reintroduza botao Google/login social sem decisao explicita.
 - Na landing publica, telefone deve ser validado e mascarado exclusivamente como `(xx) xxxxx-xxxx`.
 - No backoffice, toda chamada HTTP deve passar pelo `apiService` ou por `getApiUrl()`. Nunca use localhost hardcoded em componentes de tela.
+- O backoffice deve permanecer responsivo: drawer temporario com hamburger no mobile, drawer fixo em desktop e tabelas com alternativa em cards ou `overflowX` em telas pequenas.
 
 === SKILLS DE ARQUITETURA ===
 
@@ -556,6 +561,7 @@ O tenant_id vem sempre do header `x-tenant-id` injetado pelo api-gateway a parti
 Em rotas publicas usa DEFAULT_TENANT_ID do ambiente.
 Nunca confie no tenant_id enviado pelo cliente; sempre derive do token autenticado.
 Indices obrigatorios: toda tabela operacional tem (tenant_id, created_at DESC).
+Com Drizzle, use `and(eq(tabela.tenant_id, tenantId), ...)` nos CRUDs simples.
 
 --- SKILL: Tratamento de Erros em Servicos Internos ---
 NUNCA use bloco catch que retorna mock, [] ou dado fabricado quando um servico interno falha.
@@ -650,6 +656,7 @@ Nesta branch, o projeto foi preparado para novo deploy em `prod` com:
 - Documentacao consolidada neste README.
 - Codigo legado de chat/prompt fora dos workspaces removido.
 - `landing-react` e `backoffice-react` publicados como sites estaticos em S3 + CloudFront, com `/api/*` roteado para o ALB.
+- `backoffice-react` com layout responsivo, menu hamburger em mobile e dashboard adaptado para cards em telas pequenas.
 - Imagens e servicos ECS/Fargate dos frontends removidos do deploy.
 - `auth`, `email` e `whatsapp` migrados de ECS/Fargate para Lambda Function URL.
 - `auth` conectado ao PostgreSQL para usuarios SaaS e emissao de JWT com tenant.

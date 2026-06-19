@@ -1,0 +1,121 @@
+import {
+  boolean,
+  date,
+  integer,
+  jsonb,
+  numeric,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+  varchar,
+} from 'drizzle-orm/pg-core';
+
+export const leads = pgTable('leads', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  tenant_id: uuid('tenant_id').notNull(),
+  name: text('name').notNull(),
+  email: text('email').notNull(),
+  phone: text('phone'),
+  company: text('company'),
+  job_title: text('job_title'),
+  document: varchar('document', { length: 18 }),
+  document_type: varchar('document_type', { length: 10 }),
+  birth_date: date('birth_date', { mode: 'string' }),
+  cep: text('cep'),
+  address_line: text('address_line'),
+  number: text('number'),
+  complement: text('complement'),
+  neighborhood: text('neighborhood'),
+  city: text('city'),
+  state: text('state'),
+  monthly_income: numeric('monthly_income', { precision: 15, scale: 2 }),
+  lead_value: numeric('lead_value', { precision: 15, scale: 2 }),
+  expected_close_date: date('expected_close_date', { mode: 'string' }),
+  priority: text('priority'),
+  assigned_to: text('assigned_to'),
+  source: text('source'),
+  status: text('status'),
+  score: integer('score'),
+  temperature: text('temperature'),
+  terms_accepted: boolean('terms_accepted'),
+  consent_lgpd: boolean('consent_lgpd'),
+  stage_id: uuid('stage_id'),
+  next_follow_up: timestamp('next_follow_up', { withTimezone: true, mode: 'string' }),
+  metadata: jsonb('metadata'),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+});
+
+export const pipelines = pgTable('pipelines', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  tenant_id: uuid('tenant_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  is_active: boolean('is_active'),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+});
+
+export const stages = pgTable('stages', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  tenant_id: uuid('tenant_id').notNull(),
+  pipeline_id: uuid('pipeline_id').notNull(),
+  name: text('name').notNull(),
+  order_no: integer('order_no').notNull(),
+  stage_color: text('stage_color'),
+  conversion_probability: integer('conversion_probability'),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+});
+
+export const leadPipeline = pgTable('lead_pipeline', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  lead_id: uuid('lead_id').notNull(),
+  pipeline_id: uuid('pipeline_id').notNull(),
+  current_stage_id: uuid('current_stage_id').notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+});
+
+export const activities = pgTable('activities', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  tenant_id: uuid('tenant_id').notNull(),
+  lead_id: uuid('lead_id').notNull(),
+  type: text('type').notNull(),
+  subject: text('subject'),
+  description: text('description'),
+  outcome: text('outcome'),
+  duration_minutes: integer('duration_minutes'),
+  follow_up_required: boolean('follow_up_required'),
+  next_action: text('next_action'),
+  created_by: text('created_by'),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+});
+
+export const customFields = pgTable('custom_fields', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  tenant_id: uuid('tenant_id').notNull(),
+  name: varchar('name', { length: 100 }).notNull(),
+  label: varchar('label', { length: 200 }).notNull(),
+  field_type: varchar('field_type', { length: 50 }).notNull(),
+  is_required: boolean('is_required'),
+  placeholder: text('placeholder'),
+  help_text: text('help_text'),
+  options: jsonb('options'),
+  validation_rules: jsonb('validation_rules'),
+  display_order: integer('display_order'),
+  is_active: boolean('is_active'),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+});
+
+export const leadCustomValues = pgTable('lead_custom_values', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  lead_id: uuid('lead_id').notNull(),
+  custom_field_id: uuid('custom_field_id').notNull(),
+  value: text('value'),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+});

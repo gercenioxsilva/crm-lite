@@ -1,32 +1,9 @@
 import { FastifyInstance } from 'fastify';
-import { Pool } from 'pg';
+import { and, desc, eq } from 'drizzle-orm';
+import { db, pool } from '../../db/client';
+import { activities, leadPipeline, leads, pipelines, stages } from '../../db/schema';
 
 const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID || '00000000-0000-0000-0000-000000000001';
-const pgSslMode = (process.env.PGSSLMODE || '').toLowerCase();
-const ssl = pgSslMode === 'require'
-  ? { rejectUnauthorized: false }
-  : undefined;
-
-// Use DATABASE_URL if available, otherwise use individual env vars
-const pool = process.env.DATABASE_URL 
-  ? new Pool({
-      connectionString: process.env.DATABASE_URL,
-      connectionTimeoutMillis: 5000,
-      idleTimeoutMillis: 30000,
-      max: 20,
-      ssl
-    })
-  : new Pool({
-      host: process.env.POSTGRES_HOST || 'db',
-      port: parseInt(process.env.POSTGRES_PORT || '5432'),
-      database: process.env.POSTGRES_DB || 'quiz',
-      user: process.env.POSTGRES_USER || 'quiz',
-      password: process.env.POSTGRES_PASSWORD || 'quiz',
-      connectionTimeoutMillis: 5000,
-      idleTimeoutMillis: 30000,
-      max: 20,
-      ssl
-    });
 
 function tenantIdFromRequest(req: any, _required = true): string {
   const tenantId = req.headers['x-tenant-id'] || req.headers['X-Tenant-Id'];
@@ -54,45 +31,31 @@ export async function registerRoutes(app: FastifyInstance) {
       const document = body.document || body.cpf || null;
       const documentType = body.document_type || (body.cpf ? 'cpf' : 'cpf');
 
-      const query = `
-        INSERT INTO leads (
-          name, email, phone, company, job_title,
-          document, document_type, birth_date, cep, address_line, number,
-          complement, neighborhood, city, state, monthly_income, source,
-          terms_accepted, consent_lgpd, status, score, temperature, tenant_id
-        ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
-        ) RETURNING *
-      `;
-
-      const values = [
-        body.name,
-        body.email,
-        body.phone || null,
-        body.company || null,
-        body.job_title || null,
+      const [lead] = await db.insert(leads).values({
+        name: body.name,
+        email: body.email,
+        phone: body.phone || null,
+        company: body.company || null,
+        job_title: body.job_title || null,
         document,
-        documentType,
-        body.birthDate || null,
-        body.cep || null,
-        body.addressLine || null,
-        body.number || null,
-        body.complement || null,
-        body.neighborhood || null,
-        body.city || null,
-        body.state || null,
-        body.monthlyIncome || null,
-        body.source || 'unknown',
-        body.termsAccepted || false,
-        body.consentLgpd || false,
-        'new',
-        50,
-        'cold',
-        tenantId
-      ];
-
-      const result = await pool.query(query, values);
-      const lead = result.rows[0];
+        document_type: documentType,
+        birth_date: body.birthDate || null,
+        cep: body.cep || null,
+        address_line: body.addressLine || null,
+        number: body.number || null,
+        complement: body.complement || null,
+        neighborhood: body.neighborhood || null,
+        city: body.city || null,
+        state: body.state || null,
+        monthly_income: body.monthlyIncome != null ? String(body.monthlyIncome) : null,
+        source: body.source || 'unknown',
+        terms_accepted: body.termsAccepted || false,
+        consent_lgpd: body.consentLgpd || false,
+        status: 'new',
+        score: 50,
+        temperature: 'cold',
+        tenant_id: tenantId,
+      }).returning();
 
       // Add to default pipeline
       const pipelineQuery = `
@@ -139,7 +102,7 @@ export async function registerRoutes(app: FastifyInstance) {
     } catch (error: any) {
       app.log.error(error);
       
-      if (error.code === '23505') { // unique violation
+      if (error.code === '23505' || error.cause?.code === '23505') { // unique violation
         reply.code(409);
         return { error: 'Email already exists' };
       }
@@ -158,22 +121,51 @@ export async function registerRoutes(app: FastifyInstance) {
         return { error: 'Tenant header is required' };
       }
 
-      const query = `
-        SELECT 
-          l.*,
-          s.name as stage_name,
-          p.name as pipeline_name
-        FROM leads l
-        LEFT JOIN lead_pipeline lp ON l.id = lp.lead_id
-        LEFT JOIN stages s ON lp.current_stage_id = s.id
-        LEFT JOIN pipelines p ON lp.pipeline_id = p.id
-        WHERE l.tenant_id = $1
-        ORDER BY l.created_at DESC
-        LIMIT 100
-      `;
-      
-      const result = await pool.query(query, [tenantId]);
-      return result.rows;
+      return await db
+        .select({
+          id: leads.id,
+          tenant_id: leads.tenant_id,
+          name: leads.name,
+          email: leads.email,
+          phone: leads.phone,
+          company: leads.company,
+          job_title: leads.job_title,
+          document: leads.document,
+          document_type: leads.document_type,
+          birth_date: leads.birth_date,
+          cep: leads.cep,
+          address_line: leads.address_line,
+          number: leads.number,
+          complement: leads.complement,
+          neighborhood: leads.neighborhood,
+          city: leads.city,
+          state: leads.state,
+          monthly_income: leads.monthly_income,
+          lead_value: leads.lead_value,
+          expected_close_date: leads.expected_close_date,
+          priority: leads.priority,
+          assigned_to: leads.assigned_to,
+          source: leads.source,
+          status: leads.status,
+          score: leads.score,
+          temperature: leads.temperature,
+          terms_accepted: leads.terms_accepted,
+          consent_lgpd: leads.consent_lgpd,
+          stage_id: leads.stage_id,
+          next_follow_up: leads.next_follow_up,
+          metadata: leads.metadata,
+          created_at: leads.created_at,
+          updated_at: leads.updated_at,
+          stage_name: stages.name,
+          pipeline_name: pipelines.name,
+        })
+        .from(leads)
+        .leftJoin(leadPipeline, eq(leads.id, leadPipeline.lead_id))
+        .leftJoin(stages, eq(leadPipeline.current_stage_id, stages.id))
+        .leftJoin(pipelines, eq(leadPipeline.pipeline_id, pipelines.id))
+        .where(eq(leads.tenant_id, tenantId))
+        .orderBy(desc(leads.created_at))
+        .limit(100);
     } catch (error: any) {
       app.log.error(error);
       reply.code(500);
@@ -190,20 +182,29 @@ export async function registerRoutes(app: FastifyInstance) {
         return { error: 'Tenant header is required' };
       }
 
-      const query = `
-        SELECT 
-          a.*,
-          l.name as lead_name,
-          l.email as lead_email
-        FROM activities a
-        LEFT JOIN leads l ON a.lead_id = l.id
-        WHERE a.tenant_id = $1
-        ORDER BY a.created_at DESC
-        LIMIT 100
-      `;
-      
-      const result = await pool.query(query, [tenantId]);
-      return result.rows;
+      return await db
+        .select({
+          id: activities.id,
+          tenant_id: activities.tenant_id,
+          lead_id: activities.lead_id,
+          type: activities.type,
+          subject: activities.subject,
+          description: activities.description,
+          outcome: activities.outcome,
+          duration_minutes: activities.duration_minutes,
+          follow_up_required: activities.follow_up_required,
+          next_action: activities.next_action,
+          created_by: activities.created_by,
+          created_at: activities.created_at,
+          updated_at: activities.updated_at,
+          lead_name: leads.name,
+          lead_email: leads.email,
+        })
+        .from(activities)
+        .leftJoin(leads, eq(activities.lead_id, leads.id))
+        .where(eq(activities.tenant_id, tenantId))
+        .orderBy(desc(activities.created_at))
+        .limit(100);
     } catch (error: any) {
       app.log.error(error);
       reply.code(500);
@@ -221,26 +222,57 @@ export async function registerRoutes(app: FastifyInstance) {
         return { error: 'Tenant header is required' };
       }
       
-      const query = `
-        SELECT 
-          l.*,
-          s.name as stage_name,
-          p.name as pipeline_name
-        FROM leads l
-        LEFT JOIN lead_pipeline lp ON l.id = lp.lead_id
-        LEFT JOIN stages s ON lp.current_stage_id = s.id
-        LEFT JOIN pipelines p ON lp.pipeline_id = p.id
-        WHERE l.id = $1 AND l.tenant_id = $2
-      `;
-      
-      const result = await pool.query(query, [id, tenantId]);
-      
-      if (result.rows.length === 0) {
+      const result = await db
+        .select({
+          id: leads.id,
+          tenant_id: leads.tenant_id,
+          name: leads.name,
+          email: leads.email,
+          phone: leads.phone,
+          company: leads.company,
+          job_title: leads.job_title,
+          document: leads.document,
+          document_type: leads.document_type,
+          birth_date: leads.birth_date,
+          cep: leads.cep,
+          address_line: leads.address_line,
+          number: leads.number,
+          complement: leads.complement,
+          neighborhood: leads.neighborhood,
+          city: leads.city,
+          state: leads.state,
+          monthly_income: leads.monthly_income,
+          lead_value: leads.lead_value,
+          expected_close_date: leads.expected_close_date,
+          priority: leads.priority,
+          assigned_to: leads.assigned_to,
+          source: leads.source,
+          status: leads.status,
+          score: leads.score,
+          temperature: leads.temperature,
+          terms_accepted: leads.terms_accepted,
+          consent_lgpd: leads.consent_lgpd,
+          stage_id: leads.stage_id,
+          next_follow_up: leads.next_follow_up,
+          metadata: leads.metadata,
+          created_at: leads.created_at,
+          updated_at: leads.updated_at,
+          stage_name: stages.name,
+          pipeline_name: pipelines.name,
+        })
+        .from(leads)
+        .leftJoin(leadPipeline, eq(leads.id, leadPipeline.lead_id))
+        .leftJoin(stages, eq(leadPipeline.current_stage_id, stages.id))
+        .leftJoin(pipelines, eq(leadPipeline.pipeline_id, pipelines.id))
+        .where(and(eq(leads.id, id), eq(leads.tenant_id, tenantId)))
+        .limit(1);
+
+      if (result.length === 0) {
         reply.code(404);
         return { error: 'Lead not found' };
       }
       
-      return result.rows[0];
+      return result[0];
     } catch (error: any) {
       app.log.error(error);
       reply.code(500);
@@ -399,37 +431,32 @@ export async function registerRoutes(app: FastifyInstance) {
         return { error: 'Tenant header is required' };
       }
 
-      const leadExists = await pool.query('SELECT 1 FROM leads WHERE id = $1 AND tenant_id = $2', [id, tenantId]);
-      if (leadExists.rows.length === 0) {
+      const leadExists = await db
+        .select({ id: leads.id })
+        .from(leads)
+        .where(and(eq(leads.id, id), eq(leads.tenant_id, tenantId)))
+        .limit(1);
+
+      if (leadExists.length === 0) {
         reply.code(404);
         return { error: 'Lead not found' };
       }
-      
-      const query = `
-        INSERT INTO activities (
-          lead_id, type, subject, description, outcome, 
-          duration_minutes, follow_up_required, next_action, created_by, tenant_id
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        RETURNING *
-      `;
-      
-      const values = [
-        id,
-        body.type,
-        body.subject || body.description?.substring(0, 100) || null,
-        body.description || null,
-        body.outcome || null,
-        body.duration_minutes || null,
-        body.follow_up_required || false,
-        body.next_action || null,
-        body.created_by || 'system',
-        tenantId
-      ];
-      
-      const result = await pool.query(query, values);
+
+      const [activity] = await db.insert(activities).values({
+        lead_id: id,
+        type: body.type,
+        subject: body.subject || body.description?.substring(0, 100) || null,
+        description: body.description || null,
+        outcome: body.outcome || null,
+        duration_minutes: body.duration_minutes || null,
+        follow_up_required: body.follow_up_required || false,
+        next_action: body.next_action || null,
+        created_by: body.created_by || 'system',
+        tenant_id: tenantId,
+      }).returning();
+
       reply.code(201);
-      return result.rows[0];
+      return activity;
     } catch (error: any) {
       app.log.error(error);
       reply.code(500);
@@ -447,37 +474,32 @@ export async function registerRoutes(app: FastifyInstance) {
         return { error: 'Tenant header is required' };
       }
 
-      const leadExists = await pool.query('SELECT 1 FROM leads WHERE id = $1 AND tenant_id = $2', [body.lead_id, tenantId]);
-      if (leadExists.rows.length === 0) {
+      const leadExists = await db
+        .select({ id: leads.id })
+        .from(leads)
+        .where(and(eq(leads.id, body.lead_id), eq(leads.tenant_id, tenantId)))
+        .limit(1);
+
+      if (leadExists.length === 0) {
         reply.code(404);
         return { error: 'Lead not found' };
       }
-      
-      const query = `
-        INSERT INTO activities (
-          lead_id, type, subject, description, outcome, 
-          duration_minutes, follow_up_required, next_action, created_by, tenant_id
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        RETURNING *
-      `;
-      
-      const values = [
-        body.lead_id,
-        body.type,
-        body.subject || body.description?.substring(0, 100) || null,
-        body.description || null,
-        body.outcome || null,
-        body.duration_minutes || null,
-        body.follow_up_required || false,
-        body.next_action || null,
-        body.created_by || 'system',
-        tenantId
-      ];
-      
-      const result = await pool.query(query, values);
+
+      const [activity] = await db.insert(activities).values({
+        lead_id: body.lead_id,
+        type: body.type,
+        subject: body.subject || body.description?.substring(0, 100) || null,
+        description: body.description || null,
+        outcome: body.outcome || null,
+        duration_minutes: body.duration_minutes || null,
+        follow_up_required: body.follow_up_required || false,
+        next_action: body.next_action || null,
+        created_by: body.created_by || 'system',
+        tenant_id: tenantId,
+      }).returning();
+
       reply.code(201);
-      return result.rows[0];
+      return activity;
     } catch (error: any) {
       app.log.error(error);
       reply.code(500);

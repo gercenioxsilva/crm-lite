@@ -7,17 +7,14 @@ jest.mock('pg', () => ({
 }));
 
 import { buildServer } from '../src/infrastructure/server';
+import { drizzleLeadRows, leadRow } from './fixtures';
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
-const baseLead = {
-  id: 'lead-1',
+const baseLead = leadRow({
   name: 'Empresa Teste',
   email: 'contato@empresa.com',
-  source: 'test',
-  status: 'new',
-  created_at: '2026-01-01T00:00:00.000Z'
-};
+});
 
 describe('Leads API - document / document_type', () => {
   beforeEach(() => {
@@ -28,7 +25,7 @@ describe('Leads API - document / document_type', () => {
     const lead = { ...baseLead, document: '123.456.789-00', document_type: 'cpf' };
 
     mockPool.query
-      .mockResolvedValueOnce({ rows: [lead] })  // INSERT leads
+      .mockResolvedValueOnce(drizzleLeadRows([lead]))  // INSERT leads
       .mockResolvedValueOnce({ rows: [] });      // INSERT lead_pipeline
 
     const app = buildServer();
@@ -53,7 +50,7 @@ describe('Leads API - document / document_type', () => {
     expect(res.json()).toMatchObject({ id: 'lead-1', email: 'contato@empresa.com' });
 
     const insertCall = mockPool.query.mock.calls[0];
-    const sql: string = insertCall[0];
+    const sql: string = typeof insertCall[0] === 'string' ? insertCall[0] : insertCall[0].text;
     const params: any[] = insertCall[1];
 
     expect(sql).toContain('document');
@@ -68,7 +65,7 @@ describe('Leads API - document / document_type', () => {
     const lead = { ...baseLead, document: '12.345.678/0001-90', document_type: 'cnpj', company: 'Empresa S.A.' };
 
     mockPool.query
-      .mockResolvedValueOnce({ rows: [lead] })
+      .mockResolvedValueOnce(drizzleLeadRows([lead]))
       .mockResolvedValueOnce({ rows: [] });
 
     const app = buildServer();
@@ -105,7 +102,7 @@ describe('Leads API - document / document_type', () => {
     const lead = { ...baseLead, document: '987.654.321-00', document_type: 'cpf' };
 
     mockPool.query
-      .mockResolvedValueOnce({ rows: [lead] })
+      .mockResolvedValueOnce(drizzleLeadRows([lead]))
       .mockResolvedValueOnce({ rows: [] });
 
     const app = buildServer();
@@ -141,7 +138,7 @@ describe('Leads API - document / document_type', () => {
       { ...baseLead, id: 'lead-2', email: 'b@test.com', document: '111.222.333-44', document_type: 'cpf' }
     ];
 
-    mockPool.query.mockResolvedValueOnce({ rows: leads });
+    mockPool.query.mockResolvedValueOnce(drizzleLeadRows(leads));
 
     const app = buildServer();
     await app.ready();

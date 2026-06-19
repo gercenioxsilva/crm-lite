@@ -7,6 +7,7 @@ jest.mock('pg', () => ({
 }));
 
 import { buildServer } from '../src/infrastructure/server';
+import { drizzleLeadRows, leadRow } from './fixtures';
 
 describe('Leads API - read and update', () => {
   beforeEach(() => {
@@ -14,15 +15,12 @@ describe('Leads API - read and update', () => {
   });
 
   it('gets a lead by id', async () => {
-    const lead = {
-      id: 'lead-1',
+    const lead = leadRow({
       name: 'Bob',
       email: 'b@example.com',
-      source: 'test',
-      status: 'new'
-    };
+    });
 
-    mockPool.query.mockResolvedValueOnce({ rows: [lead] });
+    mockPool.query.mockResolvedValueOnce(drizzleLeadRows([lead]));
 
     const app = buildServer();
     await app.ready();
@@ -39,13 +37,12 @@ describe('Leads API - read and update', () => {
   });
 
   it('updates a lead with valid fields', async () => {
-    const updatedLead = {
-      id: 'lead-1',
+    const updatedLead = leadRow({
       name: 'Bob U',
       email: 'b2@example.com',
       source: 'updated',
-      status: 'qualified'
-    };
+      status: 'qualified',
+    });
 
     mockPool.query.mockResolvedValueOnce({ rows: [updatedLead] });
 
@@ -69,7 +66,7 @@ describe('Leads API - read and update', () => {
   });
 
   it('returns 404 when a lead is not found', async () => {
-    mockPool.query.mockResolvedValueOnce({ rows: [] });
+    mockPool.query.mockResolvedValueOnce(drizzleLeadRows([]));
 
     const app = buildServer();
     await app.ready();
