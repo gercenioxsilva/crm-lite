@@ -48,7 +48,7 @@ export const isValidCNPJ = (cnpj: string): boolean => {
 
 export const isValidPhone = (phone: string): boolean => {
   const digits = onlyDigits(phone)
-  return /^\+?55?\d{10,11}$/.test(digits)
+  return /^[1-9]{2}9\d{8}$/.test(digits)
 }
 
 export const isValidCEP = (cep: string): boolean => {
@@ -71,11 +71,17 @@ export const formatCNPJ = (cnpj: string): string => {
 }
 
 export const formatPhone = (phone: string): string => {
-  const digits = onlyDigits(phone)
-  if (digits.length === 11) {
-    return digits.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3')
+  const digits = onlyDigits(phone).slice(0, 11)
+
+  if (digits.length <= 2) {
+    return digits ? `(${digits}` : ''
   }
-  return digits.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3')
+
+  if (digits.length <= 7) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2)}`
+  }
+
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
 }
 
 export const formatCEP = (cep: string): string => {
