@@ -62,4 +62,40 @@ describe('Leads API - activities with Drizzle', () => {
 
     await app.close();
   });
+
+  it('ignores invalid activity outcome values before writing to the database', async () => {
+    const activity = activityRow({
+      type: 'call',
+      subject: 'Contato sem outcome valido',
+      description: 'Contato realizado',
+      outcome: null,
+    });
+
+    mockPool.query
+      .mockResolvedValueOnce({ rows: [['lead-1']] })
+      .mockResolvedValueOnce(drizzleActivityRows([activity]));
+
+    const app = buildServer();
+    await app.ready();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/activities',
+      payload: {
+        lead_id: 'lead-1',
+        type: 'call',
+        description: 'Contato realizado',
+        outcome: 'texto livre invalido',
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+
+    const insertCall = mockPool.query.mock.calls[1];
+    const params: any[] = insertCall[1];
+
+    expect(params).not.toContain('texto livre invalido');
+
+    await app.close();
+  });
 });

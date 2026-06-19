@@ -35,6 +35,10 @@ describe('Leads API - create and list', () => {
         name: 'Alice',
         email: 'a@example.com',
         source: 'test',
+        lead_value: 12345,
+        expected_close_date: '2026-07-01',
+        priority: 'high',
+        assigned_to: 'owner@quiz.com',
         termsAccepted: true,
         consentLgpd: true
       }
@@ -46,6 +50,12 @@ describe('Leads API - create and list', () => {
       email: 'a@example.com',
       custom_fields_saved: 0
     });
+
+    const insertParams: any[] = mockPool.query.mock.calls[0][1];
+    expect(insertParams).toContain('12345');
+    expect(insertParams).toContain('2026-07-01');
+    expect(insertParams).toContain('high');
+    expect(insertParams).toContain('owner@quiz.com');
 
     const listResponse = await app.inject({
       method: 'GET',

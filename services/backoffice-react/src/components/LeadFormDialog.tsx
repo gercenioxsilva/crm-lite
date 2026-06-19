@@ -21,6 +21,7 @@ import {
   Alert
 } from '@mui/material'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { apiService } from '../services/api'
 
 const leadSchema = z.object({
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
@@ -109,27 +110,19 @@ export function LeadFormDialog({ open, onClose, lead, mode }: LeadFormDialogProp
 
   const createLeadMutation = useMutation({
     mutationFn: async (data: LeadFormData) => {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/backoffice/leads`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        },
-        body: JSON.stringify({
-          ...data,
-          job_title: data.jobTitle,
-          lead_value: data.leadValue,
-          expected_close_date: data.expectedCloseDate,
-          assigned_to: data.assignedTo,
-          monthly_income: data.monthlyIncome,
-        })
+      return apiService.createLead({
+        name: data.name,
+        email: data.email,
+        phone: data.phone || undefined,
+        company: data.company || undefined,
+        job_title: data.jobTitle || undefined,
+        lead_value: data.leadValue,
+        expected_close_date: data.expectedCloseDate || undefined,
+        priority: data.priority,
+        assigned_to: data.assignedTo || undefined,
+        source: data.source || 'backoffice',
+        monthly_income: data.monthlyIncome,
       })
-      
-      if (!response.ok) {
-        throw new Error('Erro ao criar lead')
-      }
-      
-      return response.json()
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] })
@@ -141,27 +134,18 @@ export function LeadFormDialog({ open, onClose, lead, mode }: LeadFormDialogProp
 
   const updateLeadMutation = useMutation({
     mutationFn: async (data: LeadFormData) => {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/backoffice/leads/${lead.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        },
-        body: JSON.stringify({
-          ...data,
-          job_title: data.jobTitle,
-          lead_value: data.leadValue,
-          expected_close_date: data.expectedCloseDate,
-          assigned_to: data.assignedTo,
-          monthly_income: data.monthlyIncome,
-        })
+      return apiService.updateLead(lead.id, {
+        name: data.name,
+        email: data.email,
+        phone: data.phone || undefined,
+        company: data.company || undefined,
+        job_title: data.jobTitle || undefined,
+        lead_value: data.leadValue,
+        expected_close_date: data.expectedCloseDate || undefined,
+        priority: data.priority,
+        assigned_to: data.assignedTo || undefined,
+        monthly_income: data.monthlyIncome,
       })
-      
-      if (!response.ok) {
-        throw new Error('Erro ao atualizar lead')
-      }
-      
-      return response.json()
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] })
