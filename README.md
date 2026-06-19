@@ -529,6 +529,7 @@ operacional, publicando apenas prod na AWS.
 - A landing publica deve permanecer focada em captacao B2B por CNPJ. Nao reintroduza botao Google/login social sem decisao explicita.
 - Na landing publica, telefone deve ser validado e mascarado exclusivamente como `(xx) xxxxx-xxxx`.
 - No backoffice, toda chamada HTTP deve passar pelo `apiService` ou por `getApiUrl()`. Nunca use localhost hardcoded em componentes de tela.
+- O backoffice deve permanecer responsivo: drawer temporario com hamburger no mobile, drawer fixo em desktop e tabelas com alternativa em cards ou `overflowX` em telas pequenas.
 
 === SKILLS DE ARQUITETURA ===
 
@@ -655,6 +656,7 @@ Nesta branch, o projeto foi preparado para novo deploy em `prod` com:
 - Documentacao consolidada neste README.
 - Codigo legado de chat/prompt fora dos workspaces removido.
 - `landing-react` e `backoffice-react` publicados como sites estaticos em S3 + CloudFront, com `/api/*` roteado para o ALB.
+- `backoffice-react` com layout responsivo, menu hamburger em mobile e dashboard adaptado para cards em telas pequenas.
 - Imagens e servicos ECS/Fargate dos frontends removidos do deploy.
 - `auth`, `email` e `whatsapp` migrados de ECS/Fargate para Lambda Function URL.
 - `auth` conectado ao PostgreSQL para usuarios SaaS e emissao de JWT com tenant.

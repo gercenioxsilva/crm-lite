@@ -1,14 +1,47 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
-  Box, Grid, Card, CardContent, Typography, CircularProgress, Alert,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Paper, Chip, Button, Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, MenuItem, Select, FormControl, InputLabel, LinearProgress
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  Grid,
+  InputLabel,
+  LinearProgress,
+  MenuItem,
+  Paper,
+  Select,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material'
 import {
-  People, AttachMoney, TrendingUp, Schedule, Add, Phone, Email,
-  Business
+  Add,
+  AttachMoney,
+  Business,
+  Email,
+  People,
+  Phone,
+  Refresh,
+  Schedule,
+  TrendingUp,
 } from '@mui/icons-material'
+import { apiService } from '../services/api'
 
 interface Stats {
   totalLeads: number
@@ -26,7 +59,7 @@ interface Lead {
   company?: string
   job_title?: string
   source?: string
-  lead_value?: number
+  lead_value?: number | string
   priority?: string
   temperature?: string
   status?: string
@@ -40,11 +73,54 @@ interface ChartData {
   leads: number
 }
 
+const emptyStats: Stats = {
+  totalLeads: 0,
+  todayLeads: 0,
+  conversionRate: 0,
+  monthlyGrowth: 0,
+  totalValue: 0,
+}
+
+function currency(value: number | string | undefined) {
+  const numericValue = Number(value || 0)
+  return numericValue.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 0,
+  })
+}
+
+function statusLabel(status?: string) {
+  const labels: Record<string, string> = {
+    new: 'Novo',
+    contacted: 'Contatado',
+    qualified: 'Qualificado',
+    proposal: 'Proposta',
+    negotiation: 'Negociacao',
+    won: 'Ganho',
+    lost: 'Perdido',
+  }
+  return labels[status || 'new'] || status || 'Novo'
+}
+
+function priorityLabel(priority?: string) {
+  const labels: Record<string, string> = {
+    low: 'Baixa',
+    medium: 'Media',
+    high: 'Alta',
+    urgent: 'Urgente',
+  }
+  return labels[priority || 'medium'] || priority || 'Media'
+}
+
 export function RealTimeDashboard() {
-  const [stats, setStats] = useState<Stats | null>(null)
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  const [stats, setStats] = useState<Stats>(emptyStats)
   const [leads, setLeads] = useState<Lead[]>([])
   const [chartData, setChartData] = useState<ChartData[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [openDialog, setOpenDialog] = useState(false)
   const [newLead, setNewLead] = useState({
@@ -54,422 +130,293 @@ export function RealTimeDashboard() {
     company: '',
     job_title: '',
     lead_value: '',
-    priority: 'medium'
+    priority: 'medium',
   })
 
-  const fetchData = async () => {
+  const fetchData = async (silent = false) => {
     try {
-      setLoading(true)
+      if (silent) {
+        setRefreshing(true)
+      } else {
+        setLoading(true)
+      }
       setError(null)
-      
-      const token = localStorage.getItem('auth_token') || 'mock-admin-token'
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
 
-      const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3000')
-      
-      // Fetch stats with fallback
-      try {
-        const statsRes = await fetch(`${apiUrl}/backoffice/stats`, { headers })
-        if (statsRes.ok) {
-          const statsData = await statsRes.json()
-          setStats(statsData)
-        }
-      } catch (statsError) {
-        console.error('Stats error:', statsError)
-        setStats({ totalLeads: 0, todayLeads: 0, conversionRate: 0, monthlyGrowth: 0, totalValue: 0 })
-      }
+      const [statsData, leadsData, chart] = await Promise.all([
+        apiService.getStats().catch(() => emptyStats),
+        apiService.getLeads().catch(() => []),
+        apiService.getChartData().catch(() => []),
+      ])
 
-      // Fetch leads with fallback
-      try {
-        const leadsRes = await fetch(`${apiUrl}/backoffice/leads`, { headers })
-        if (leadsRes.ok) {
-          const leadsData = await leadsRes.json()
-          setLeads(Array.isArray(leadsData) ? leadsData : [])
-        }
-      } catch (leadsError) {
-        console.error('Leads error:', leadsError)
-        setLeads([])
-      }
-
-      // Fetch chart data with fallback
-      try {
-        const chartRes = await fetch(`${apiUrl}/backoffice/chart`, { headers })
-        if (chartRes.ok) {
-          const chartData = await chartRes.json()
-          setChartData(Array.isArray(chartData) ? chartData : [])
-        }
-      } catch (chartError) {
-        console.error('Chart error:', chartError)
-        setChartData([])
-      }
-
+      setStats({ ...emptyStats, ...(statsData || {}) })
+      setLeads(Array.isArray(leadsData) ? leadsData : [])
+      setChartData(Array.isArray(chart) ? chart : [])
     } catch (err) {
-      console.error('General error:', err)
-      setError('Erro ao carregar dados')
+      console.error('Dashboard load error:', err)
+      setError('Nao foi possivel carregar os dados do dashboard.')
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }
 
   const handleCreateLead = async () => {
     try {
-      const token = localStorage.getItem('auth_token')
-      const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3000')
-      const response = await fetch(`${apiUrl}/backoffice/leads`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ...newLead,
-          lead_value: parseFloat(newLead.lead_value) || 0
-        })
+      await apiService.createLead({
+        ...newLead,
+        lead_value: parseFloat(newLead.lead_value) || 0,
       })
-
-      if (response.ok) {
-        setOpenDialog(false)
-        setNewLead({
-          name: '',
-          email: '',
-          phone: '',
-          company: '',
-          job_title: '',
-          lead_value: '',
-          priority: 'medium'
-        })
-        fetchData()
-      }
+      setOpenDialog(false)
+      setNewLead({
+        name: '',
+        email: '',
+        phone: '',
+        company: '',
+        job_title: '',
+        lead_value: '',
+        priority: 'medium',
+      })
+      await fetchData(true)
     } catch (err) {
       console.error('Error creating lead:', err)
+      setError('Nao foi possivel criar o lead.')
     }
   }
 
   const getStatusColor = (status?: string) => {
     switch (status) {
-      case 'qualified': return 'success'
-      case 'contacted': return 'info'
-      case 'proposal': return 'warning'
-      case 'negotiation': return 'secondary'
-      case 'won': return 'success'
-      case 'lost': return 'error'
-      default: return 'default'
+      case 'qualified':
+      case 'won':
+        return 'success'
+      case 'contacted':
+        return 'info'
+      case 'proposal':
+        return 'warning'
+      case 'negotiation':
+        return 'secondary'
+      case 'lost':
+        return 'error'
+      default:
+        return 'default'
     }
   }
 
   const getPriorityColor = (priority?: string) => {
     switch (priority) {
-      case 'urgent': return 'error'
-      case 'high': return 'warning'
-      case 'medium': return 'info'
-      case 'low': return 'default'
-      default: return 'default'
-    }
-  }
-
-  const getTemperatureIcon = (temperature?: string) => {
-    switch (temperature) {
-      case 'hot': return '🔥'
-      case 'warm': return '🌡️'
-      case 'cold': return '❄️'
-      default: return '⚪'
+      case 'urgent':
+        return 'error'
+      case 'high':
+        return 'warning'
+      case 'medium':
+        return 'info'
+      default:
+        return 'default'
     }
   }
 
   useEffect(() => {
     fetchData()
-    const interval = setInterval(fetchData, 10000) // Atualiza a cada 10 segundos
+    const interval = setInterval(() => fetchData(true), 30000)
     return () => clearInterval(interval)
   }, [])
 
+  const statusData = useMemo(() => {
+    return leads.reduce<Record<string, number>>((acc, lead) => {
+      const status = lead.status || 'new'
+      acc[status] = (acc[status] || 0) + 1
+      return acc
+    }, {})
+  }, [leads])
+
+  const sourceData = useMemo(() => {
+    return leads.reduce<Record<string, number>>((acc, lead) => {
+      const source = lead.source || 'unknown'
+      acc[source] = (acc[source] || 0) + 1
+      return acc
+    }, {})
+  }, [leads])
+
+  const hotLeads = leads.filter((lead) => lead.temperature === 'hot').length
+  const qualifiedLeads = leads.filter((lead) => lead.status === 'qualified').length
+  const negotiationLeads = leads.filter((lead) => lead.status === 'negotiation').length
+  const avgValue = leads.length > 0 ? stats.totalValue / leads.length : 0
+  const updatedAt = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+
+  const statCards = [
+    {
+      label: 'Total de leads',
+      value: stats.totalLeads,
+      helper: `${stats.monthlyGrowth.toFixed(1)}% este mes`,
+      icon: People,
+      color: '#8A05BE',
+    },
+    {
+      label: 'Valor em pipeline',
+      value: currency(stats.totalValue),
+      helper: `Ticket medio ${currency(avgValue)}`,
+      icon: AttachMoney,
+      color: '#12CBC4',
+    },
+    {
+      label: 'Conversao',
+      value: `${stats.conversionRate.toFixed(1)}%`,
+      helper: `${qualifiedLeads} qualificados`,
+      icon: TrendingUp,
+      color: '#3B82F6',
+    },
+    {
+      label: 'Leads hoje',
+      value: stats.todayLeads,
+      helper: `${hotLeads} leads quentes`,
+      icon: Schedule,
+      color: '#F59E0B',
+    },
+  ]
+
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
         <CircularProgress />
-        <Typography sx={{ ml: 2 }}>🔄 Carregando dados em tempo real...</Typography>
+        <Typography sx={{ ml: 2 }}>Carregando dashboard...</Typography>
       </Box>
     )
   }
-
-  if (error) {
-    return (
-      <Alert severity="error" action={
-        <Button onClick={fetchData}>🔄 Tentar Novamente</Button>
-      }>
-        ❌ Erro ao carregar dados: {error}
-      </Alert>
-    )
-  }
-
-  // Calculate additional metrics
-  const sourceData = leads.reduce((acc: any, lead) => {
-    const source = lead.source || 'unknown'
-    acc[source] = (acc[source] || 0) + 1
-    return acc
-  }, {})
-
-  const statusData = leads.reduce((acc: any, lead) => {
-    const status = lead.status || 'new'
-    acc[status] = (acc[status] || 0) + 1
-    return acc
-  }, {})
-
-  const hotLeads = leads.filter(l => l.temperature === 'hot').length
-  const qualifiedLeads = leads.filter(l => l.status === 'qualified').length
-  const negotiationLeads = leads.filter(l => l.status === 'negotiation').length
-  const avgValue = leads.length > 0 ? (stats?.totalValue || 0) / leads.length : 0
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4">
-          🚀 CRM Dashboard - Dados em Tempo Real
-        </Typography>
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        justifyContent="space-between"
+        alignItems={{ xs: 'stretch', sm: 'center' }}
+        spacing={2}
+        mb={3}
+      >
         <Box>
-          <Typography variant="caption" color="text.secondary" sx={{ mr: 2 }}>
-            🔄 Atualizado: {new Date().toLocaleTimeString('pt-BR')}
+          <Typography variant={isMobile ? 'h5' : 'h4'} fontWeight={700}>
+            Dashboard
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Visao operacional de leads, pipeline e atividades comerciais.
+          </Typography>
+        </Box>
+
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', sm: 'center' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ alignSelf: { sm: 'center' } }}>
+            Atualizado as {updatedAt}
           </Typography>
           <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={() => setOpenDialog(true)}
+            variant="outlined"
+            startIcon={<Refresh />}
+            onClick={() => fetchData(true)}
+            disabled={refreshing}
           >
-            ➕ Novo Lead
+            Atualizar
           </Button>
-        </Box>
-      </Box>
-      
-      {/* Main Stats Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography color="inherit" gutterBottom variant="body2">
-                    Total de Leads
-                  </Typography>
-                  <Typography variant="h3" component="div" fontWeight="bold">
-                    {stats?.totalLeads || 0}
-                  </Typography>
-                  {stats?.monthlyGrowth !== undefined && (
-                    <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                      📈 +{stats.monthlyGrowth.toFixed(1)}% este mês
-                    </Typography>
-                  )}
-                </Box>
-                <People sx={{ fontSize: 50, opacity: 0.8 }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', color: 'white' }}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography color="inherit" gutterBottom variant="body2">
-                    Valor Pipeline
-                  </Typography>
-                  <Typography variant="h3" component="div" fontWeight="bold">
-                    R$ {(stats?.totalValue || 0).toLocaleString('pt-BR')}
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                    💰 Valor médio: R$ {avgValue.toLocaleString('pt-BR')}
-                  </Typography>
-                </Box>
-                <AttachMoney sx={{ fontSize: 50, opacity: 0.8 }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', color: 'white' }}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography color="inherit" gutterBottom variant="body2">
-                    Taxa Conversão
-                  </Typography>
-                  <Typography variant="h3" component="div" fontWeight="bold">
-                    {(stats?.conversionRate || 0).toFixed(1)}%
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                    🎯 {qualifiedLeads} qualificados
-                  </Typography>
-                </Box>
-                <TrendingUp sx={{ fontSize: 50, opacity: 0.8 }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', color: 'white' }}>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography color="inherit" gutterBottom variant="body2">
-                    Leads Hoje
-                  </Typography>
-                  <Typography variant="h3" component="div" fontWeight="bold">
-                    {stats?.todayLeads || 0}
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                    🔥 {hotLeads} leads quentes
-                  </Typography>
-                </Box>
-                <Schedule sx={{ fontSize: 50, opacity: 0.8 }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
+          <Button variant="contained" startIcon={<Add />} onClick={() => setOpenDialog(true)}>
+            Novo lead
+          </Button>
+        </Stack>
+      </Stack>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }} action={<Button onClick={() => fetchData()}>Tentar novamente</Button>}>
+          {error}
+        </Alert>
+      )}
+
+      <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: { xs: 3, md: 4 } }}>
+        {statCards.map((card) => {
+          const Icon = card.icon
+          return (
+            <Grid item xs={12} sm={6} lg={3} key={card.label}>
+              <Card sx={{ height: '100%', backgroundColor: 'background.paper' }}>
+                <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+                    <Box minWidth={0}>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        {card.label}
+                      </Typography>
+                      <Typography variant={isMobile ? 'h5' : 'h4'} fontWeight={700} noWrap>
+                        {card.value}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {card.helper}
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 2,
+                        display: 'grid',
+                        placeItems: 'center',
+                        color: card.color,
+                        backgroundColor: `${card.color}22`,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Icon />
+                    </Box>
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          )
+        })}
       </Grid>
 
-      {/* Charts and Analytics */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
+      <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: { xs: 3, md: 4 } }}>
+        <Grid item xs={12} lg={7}>
+          <Card sx={{ height: '100%' }}>
+            <CardContent sx={{ p: { xs: 2, md: 3 } }}>
               <Typography variant="h6" gutterBottom>
-                📊 Leads por Dia da Semana
+                Leads por periodo
               </Typography>
-              {chartData.map((item) => (
-                <Box key={item.name} sx={{ mb: 2 }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                    <Typography variant="body2">{item.name}</Typography>
-                    <Typography variant="body2" fontWeight="bold">{item.leads}</Typography>
-                  </Box>
-                  <LinearProgress
-                    variant="determinate"
-                    value={chartData.length > 0 ? (item.leads / Math.max(...chartData.map(d => d.leads), 1)) * 100 : 0}
-                    sx={{ height: 8, borderRadius: 4 }}
-                  />
-                </Box>
-              ))}
+              <Stack spacing={2}>
+                {chartData.length === 0 && (
+                  <Typography variant="body2" color="text.secondary">
+                    Sem dados de periodo para exibir.
+                  </Typography>
+                )}
+                {chartData.map((item) => {
+                  const max = Math.max(...chartData.map((entry) => entry.leads), 1)
+                  return (
+                    <Box key={item.name}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.75}>
+                        <Typography variant="body2">{item.name}</Typography>
+                        <Typography variant="body2" fontWeight={700}>{item.leads}</Typography>
+                      </Stack>
+                      <LinearProgress
+                        variant="determinate"
+                        value={(item.leads / max) * 100}
+                        sx={{ height: 8, borderRadius: 4 }}
+                      />
+                    </Box>
+                  )
+                })}
+              </Stack>
             </CardContent>
           </Card>
         </Grid>
-        
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                🎯 Leads por Fonte
-              </Typography>
-              {Object.entries(sourceData).map(([source, count]: [string, any]) => (
-                <Box key={source} sx={{ mb: 2 }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                    <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
-                      {source === 'landing' ? '🌐 Landing Page' : 
-                       source === 'google' ? '🔍 Google' :
-                       source === 'facebook' ? '📘 Facebook' :
-                       source === 'linkedin' ? '💼 LinkedIn' :
-                       source === 'instagram' ? '📸 Instagram' : `📱 ${source}`}
-                    </Typography>
-                    <Typography variant="body2" fontWeight="bold">{count}</Typography>
-                  </Box>
-                  <LinearProgress
-                    variant="determinate"
-                    value={leads.length > 0 ? (count / leads.length) * 100 : 0}
-                    sx={{ height: 8, borderRadius: 4 }}
-                    color={source === 'landing' ? 'primary' : 
-                           source === 'google' ? 'success' : 
-                           source === 'facebook' ? 'info' : 'secondary'}
-                  />
-                </Box>
-              ))}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
 
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
+        <Grid item xs={12} lg={5}>
+          <Card sx={{ height: '100%' }}>
+            <CardContent sx={{ p: { xs: 2, md: 3 } }}>
               <Typography variant="h6" gutterBottom>
-                📈 Status dos Leads
-              </Typography>
-              {Object.entries(statusData).map(([status, count]: [string, any]) => (
-                <Box key={status} sx={{ mb: 2 }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                    <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
-                      {status === 'new' ? '🆕 Novo' :
-                       status === 'qualified' ? '✅ Qualificado' :
-                       status === 'contacted' ? '📞 Contatado' :
-                       status === 'proposal' ? '📋 Proposta' :
-                       status === 'negotiation' ? '🤝 Negociação' :
-                       status === 'won' ? '🏆 Ganho' :
-                       status === 'lost' ? '❌ Perdido' : status}
-                    </Typography>
-                    <Typography variant="body2" fontWeight="bold">{count}</Typography>
-                  </Box>
-                  <LinearProgress
-                    variant="determinate"
-                    value={leads.length > 0 ? (count / leads.length) * 100 : 0}
-                    sx={{ height: 8, borderRadius: 4 }}
-                    color={status === 'won' ? 'success' : 
-                           status === 'qualified' ? 'primary' : 
-                           status === 'lost' ? 'error' : 'info'}
-                  />
-                </Box>
-              ))}
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                🎯 Métricas Rápidas
+                Resumo rapido
               </Typography>
               <Grid container spacing={2}>
                 <Grid item xs={6}>
-                  <Box textAlign="center" p={2} bgcolor="success.light" borderRadius={2}>
-                    <Typography variant="h4" color="success.contrastText">
-                      {hotLeads}
-                    </Typography>
-                    <Typography variant="body2" color="success.contrastText">
-                      🔥 Leads Quentes
-                    </Typography>
-                  </Box>
+                  <MetricBlock label="Leads quentes" value={hotLeads} color="warning.main" />
                 </Grid>
                 <Grid item xs={6}>
-                  <Box textAlign="center" p={2} bgcolor="info.light" borderRadius={2}>
-                    <Typography variant="h4" color="info.contrastText">
-                      {qualifiedLeads}
-                    </Typography>
-                    <Typography variant="body2" color="info.contrastText">
-                      ✅ Qualificados
-                    </Typography>
-                  </Box>
+                  <MetricBlock label="Qualificados" value={qualifiedLeads} color="success.main" />
                 </Grid>
                 <Grid item xs={6}>
-                  <Box textAlign="center" p={2} bgcolor="warning.light" borderRadius={2}>
-                    <Typography variant="h4" color="warning.contrastText">
-                      {negotiationLeads}
-                    </Typography>
-                    <Typography variant="body2" color="warning.contrastText">
-                      🤝 Negociação
-                    </Typography>
-                  </Box>
+                  <MetricBlock label="Negociacao" value={negotiationLeads} color="secondary.main" />
                 </Grid>
                 <Grid item xs={6}>
-                  <Box textAlign="center" p={2} bgcolor="secondary.light" borderRadius={2}>
-                    <Typography variant="h4" color="secondary.contrastText">
-                      R$ {avgValue.toFixed(0)}
-                    </Typography>
-                    <Typography variant="body2" color="secondary.contrastText">
-                      💰 Valor Médio
-                    </Typography>
-                  </Box>
+                  <MetricBlock label="Ticket medio" value={currency(avgValue)} color="info.main" />
                 </Grid>
               </Grid>
             </CardContent>
@@ -477,95 +424,116 @@ export function RealTimeDashboard() {
         </Grid>
       </Grid>
 
-      {/* Leads Table */}
+      <Grid container spacing={{ xs: 2, md: 3 }} sx={{ mb: { xs: 3, md: 4 } }}>
+        <Grid item xs={12} md={6}>
+          <BreakdownCard title="Status dos leads" data={statusData} formatter={statusLabel} />
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <BreakdownCard title="Origem dos leads" data={sourceData} formatter={(value) => value === 'unknown' ? 'Nao informado' : value} />
+        </Grid>
+      </Grid>
+
       <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            👥 Leads Recentes (Dados Reais)
-          </Typography>
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Nome</TableCell>
-                  <TableCell>Email</TableCell>
-                  <TableCell>Empresa</TableCell>
-                  <TableCell>Valor</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Temp.</TableCell>
-                  <TableCell>Prioridade</TableCell>
-                  <TableCell>Ações</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {leads.slice(0, 10).map((lead) => (
-                  <TableRow key={lead.id} hover>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight="bold">
-                        {lead.name}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {new Date(lead.created_at).toLocaleDateString('pt-BR')}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>{lead.email}</TableCell>
-                    <TableCell>
-                      <Box display="flex" alignItems="center">
-                        <Business sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
-                        {lead.company || '-'}
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight="bold" color="success.main">
-                        R$ {(lead.lead_value || 0).toLocaleString('pt-BR')}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={lead.status || 'new'}
-                        color={getStatusColor(lead.status) as any}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {getTemperatureIcon(lead.temperature)} {lead.temperature || 'cold'}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={lead.priority || 'medium'}
-                        color={getPriorityColor(lead.priority) as any}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Button size="small" startIcon={<Phone />} sx={{ mr: 1 }}>
-                        📞
-                      </Button>
-                      <Button size="small" startIcon={<Email />}>
-                        ✉️
-                      </Button>
-                    </TableCell>
+        <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1.5} mb={2}>
+            <Box>
+              <Typography variant="h6">Leads recentes</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Ultimos cadastros recebidos no CRM.
+              </Typography>
+            </Box>
+          </Stack>
+
+          {isMobile ? (
+            <Stack spacing={1.5}>
+              {leads.slice(0, 10).map((lead) => (
+                <LeadMobileCard key={lead.id} lead={lead} getStatusColor={getStatusColor} getPriorityColor={getPriorityColor} />
+              ))}
+              {leads.length === 0 && (
+                <Typography variant="body2" color="text.secondary">
+                  Nenhum lead encontrado.
+                </Typography>
+              )}
+            </Stack>
+          ) : (
+            <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+              <Table size="medium">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Lead</TableCell>
+                    <TableCell>Email</TableCell>
+                    <TableCell>Empresa</TableCell>
+                    <TableCell>Valor</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Prioridade</TableCell>
+                    <TableCell align="right">Acoes</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                </TableHead>
+                <TableBody>
+                  {leads.slice(0, 10).map((lead) => (
+                    <TableRow key={lead.id} hover>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={700}>
+                          {lead.name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {new Date(lead.created_at).toLocaleDateString('pt-BR')}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{lead.email}</TableCell>
+                      <TableCell>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Business sx={{ fontSize: 16, color: 'text.secondary' }} />
+                          <Typography variant="body2">{lead.company || '-'}</Typography>
+                        </Stack>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={700} color="success.main">
+                          {currency(lead.lead_value)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip label={statusLabel(lead.status)} color={getStatusColor(lead.status) as any} size="small" />
+                      </TableCell>
+                      <TableCell>
+                        <Chip label={priorityLabel(lead.priority)} color={getPriorityColor(lead.priority) as any} size="small" />
+                      </TableCell>
+                      <TableCell align="right">
+                        <Button size="small" startIcon={<Phone />}>
+                          Ligar
+                        </Button>
+                        <Button size="small" startIcon={<Email />}>
+                          Email
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {leads.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7}>
+                        <Typography variant="body2" color="text.secondary">
+                          Nenhum lead encontrado.
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
         </CardContent>
       </Card>
 
-      {/* Create Lead Dialog */}
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>➕ Novo Lead</DialogTitle>
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth fullScreen={isMobile}>
+        <DialogTitle>Novo lead</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                label="Nome Completo"
+                label="Nome completo"
                 value={newLead.name}
-                onChange={(e) => setNewLead({ ...newLead, name: e.target.value })}
+                onChange={(event) => setNewLead({ ...newLead, name: event.target.value })}
                 required
               />
             </Grid>
@@ -575,7 +543,7 @@ export function RealTimeDashboard() {
                 label="Email"
                 type="email"
                 value={newLead.email}
-                onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
+                onChange={(event) => setNewLead({ ...newLead, email: event.target.value })}
                 required
               />
             </Grid>
@@ -584,57 +552,167 @@ export function RealTimeDashboard() {
                 fullWidth
                 label="Telefone"
                 value={newLead.phone}
-                onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })}
+                onChange={(event) => setNewLead({ ...newLead, phone: event.target.value })}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="Empresa"
                 value={newLead.company}
-                onChange={(e) => setNewLead({ ...newLead, company: e.target.value })}
+                onChange={(event) => setNewLead({ ...newLead, company: event.target.value })}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="Cargo"
                 value={newLead.job_title}
-                onChange={(e) => setNewLead({ ...newLead, job_title: e.target.value })}
+                onChange={(event) => setNewLead({ ...newLead, job_title: event.target.value })}
               />
             </Grid>
-            <Grid item xs={6}>
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="Valor do Lead (R$)"
+                label="Valor do lead"
                 type="number"
                 value={newLead.lead_value}
-                onChange={(e) => setNewLead({ ...newLead, lead_value: e.target.value })}
+                onChange={(event) => setNewLead({ ...newLead, lead_value: event.target.value })}
               />
             </Grid>
-            <Grid item xs={6}>
+            <Grid item xs={12} sm={6}>
               <FormControl fullWidth>
                 <InputLabel>Prioridade</InputLabel>
                 <Select
+                  label="Prioridade"
                   value={newLead.priority}
-                  onChange={(e) => setNewLead({ ...newLead, priority: e.target.value })}
+                  onChange={(event) => setNewLead({ ...newLead, priority: event.target.value })}
                 >
-                  <MenuItem value="low">🟢 Baixa</MenuItem>
-                  <MenuItem value="medium">🟡 Média</MenuItem>
-                  <MenuItem value="high">🟠 Alta</MenuItem>
-                  <MenuItem value="urgent">🔴 Urgente</MenuItem>
+                  <MenuItem value="low">Baixa</MenuItem>
+                  <MenuItem value="medium">Media</MenuItem>
+                  <MenuItem value="high">Alta</MenuItem>
+                  <MenuItem value="urgent">Urgente</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
           <Button onClick={() => setOpenDialog(false)}>Cancelar</Button>
           <Button onClick={handleCreateLead} variant="contained">
-            ✅ Criar Lead
+            Criar lead
           </Button>
         </DialogActions>
       </Dialog>
     </Box>
+  )
+}
+
+function MetricBlock({ label, value, color }: { label: string; value: number | string; color: string }) {
+  return (
+    <Box
+      sx={{
+        p: 2,
+        borderRadius: 2,
+        border: '1px solid',
+        borderColor: 'divider',
+        backgroundColor: 'background.default',
+        minHeight: 104,
+      }}
+    >
+      <Typography variant="h5" fontWeight={700} color={color} noWrap>
+        {value}
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        {label}
+      </Typography>
+    </Box>
+  )
+}
+
+function BreakdownCard({
+  title,
+  data,
+  formatter,
+}: {
+  title: string
+  data: Record<string, number>
+  formatter: (value: string) => string
+}) {
+  const total = Object.values(data).reduce((sum, value) => sum + value, 0)
+
+  return (
+    <Card sx={{ height: '100%' }}>
+      <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+        <Typography variant="h6" gutterBottom>
+          {title}
+        </Typography>
+        <Stack spacing={2}>
+          {Object.entries(data).length === 0 && (
+            <Typography variant="body2" color="text.secondary">
+              Sem dados para exibir.
+            </Typography>
+          )}
+          {Object.entries(data).map(([key, count]) => (
+            <Box key={key}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.75}>
+                <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
+                  {formatter(key)}
+                </Typography>
+                <Typography variant="body2" fontWeight={700}>{count}</Typography>
+              </Stack>
+              <LinearProgress
+                variant="determinate"
+                value={total > 0 ? (count / total) * 100 : 0}
+                sx={{ height: 8, borderRadius: 4 }}
+              />
+            </Box>
+          ))}
+        </Stack>
+      </CardContent>
+    </Card>
+  )
+}
+
+function LeadMobileCard({
+  lead,
+  getStatusColor,
+  getPriorityColor,
+}: {
+  lead: Lead
+  getStatusColor: (status?: string) => string
+  getPriorityColor: (priority?: string) => string
+}) {
+  return (
+    <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
+      <Stack spacing={1.5}>
+        <Box>
+          <Typography variant="body1" fontWeight={700}>
+            {lead.name}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
+            {lead.email}
+          </Typography>
+        </Box>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Chip label={statusLabel(lead.status)} color={getStatusColor(lead.status) as any} size="small" />
+          <Chip label={priorityLabel(lead.priority)} color={getPriorityColor(lead.priority) as any} size="small" />
+        </Stack>
+        <Stack direction="row" justifyContent="space-between" spacing={2}>
+          <Box minWidth={0}>
+            <Typography variant="caption" color="text.secondary">Empresa</Typography>
+            <Typography variant="body2" noWrap>{lead.company || '-'}</Typography>
+          </Box>
+          <Box textAlign="right">
+            <Typography variant="caption" color="text.secondary">Valor</Typography>
+            <Typography variant="body2" fontWeight={700} color="success.main">{currency(lead.lead_value)}</Typography>
+          </Box>
+        </Stack>
+        <Stack direction="row" spacing={1}>
+          <Button size="small" startIcon={<Phone />} fullWidth>Ligar</Button>
+          <Button size="small" startIcon={<Email />} fullWidth>Email</Button>
+        </Stack>
+      </Stack>
+    </Paper>
   )
 }
