@@ -4,22 +4,22 @@ export const theme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      main: '#8A05BE',
-      light: '#b5179e',
-      dark: '#6b0494',
+      main: '#14B8A6',
+      light: '#5EEAD4',
+      dark: '#0F766E',
     },
     secondary: {
-      main: '#12CBC4',
-      light: '#4dd8d2',
-      dark: '#0e9a95',
+      main: '#38BDF8',
+      light: '#7DD3FC',
+      dark: '#0284C7',
     },
     background: {
-      default: '#0F0F10',
-      paper: '#171718',
+      default: '#0B0F14',
+      paper: '#111827',
     },
     text: {
-      primary: '#F2F2F3',
-      secondary: '#B0B0B5',
+      primary: '#F8FAFC',
+      secondary: '#CBD5E1',
     },
     error: {
       main: '#ff6b6b',
@@ -28,12 +28,12 @@ export const theme = createTheme({
   typography: {
     fontFamily: 'Inter, system-ui, Segoe UI, Roboto, Arial, sans-serif',
     h1: {
-      fontSize: '2rem',
-      fontWeight: 700,
+      fontSize: '2.4rem',
+      fontWeight: 750,
       lineHeight: 1.2,
     },
     h2: {
-      fontSize: '1.5rem',
+      fontSize: '1.25rem',
       fontWeight: 600,
     },
     body1: {
@@ -44,15 +44,16 @@ export const theme = createTheme({
     MuiButton: {
       styleOverrides: {
         root: {
-          borderRadius: 12,
+          borderRadius: 8,
           textTransform: 'none',
-          fontWeight: 500,
+          fontWeight: 700,
         },
         contained: {
-          background: 'linear-gradient(90deg, #8A05BE, #b5179e)',
-          boxShadow: '0 8px 30px rgba(138,5,190,.25)',
+          background: 'linear-gradient(90deg, #14B8A6, #38BDF8)',
+          color: '#061013',
+          boxShadow: '0 10px 30px rgba(20,184,166,.22)',
           '&:hover': {
-            boxShadow: '0 12px 40px rgba(138,5,190,.35)',
+            boxShadow: '0 14px 38px rgba(56,189,248,.26)',
           },
         },
       },
@@ -61,16 +62,16 @@ export const theme = createTheme({
       styleOverrides: {
         root: {
           '& .MuiOutlinedInput-root': {
-            borderRadius: 12,
-            backgroundColor: '#101012',
+            borderRadius: 8,
+            backgroundColor: '#0B1220',
             '& fieldset': {
-              borderColor: '#2A2A2B',
+              borderColor: '#263244',
             },
             '&:hover fieldset': {
-              borderColor: '#8A05BE',
+              borderColor: '#38BDF8',
             },
             '&.Mui-focused fieldset': {
-              borderColor: '#8A05BE',
+              borderColor: '#14B8A6',
             },
           },
         },
@@ -79,9 +80,10 @@ export const theme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          borderRadius: 16,
-          border: '1px solid #2A2A2B',
-          background: 'linear-gradient(180deg, rgba(255,255,255,.02), transparent), #171718',
+          borderRadius: 8,
+          border: '1px solid rgba(148,163,184,.22)',
+          background: 'linear-gradient(180deg, rgba(255,255,255,.04), transparent), #111827',
+          boxShadow: '0 24px 80px rgba(0,0,0,.28)',
         },
       },
     },

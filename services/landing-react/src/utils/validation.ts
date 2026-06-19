@@ -27,6 +27,25 @@ export const isValidCPF = (cpf: string): boolean => {
   return rev === parseInt(digits[10])
 }
 
+export const isValidCNPJ = (cnpj: string): boolean => {
+  const digits = onlyDigits(cnpj)
+
+  if (!digits || digits.length !== 14 || /^([0-9])\1+$/.test(digits)) {
+    return false
+  }
+
+  const calcDigit = (base: string, weights: number[]) => {
+    const sum = weights.reduce((acc, weight, index) => acc + parseInt(base[index], 10) * weight, 0)
+    const remainder = sum % 11
+    return remainder < 2 ? 0 : 11 - remainder
+  }
+
+  const firstDigit = calcDigit(digits.slice(0, 12), [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])
+  const secondDigit = calcDigit(digits.slice(0, 13), [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])
+
+  return firstDigit === parseInt(digits[12], 10) && secondDigit === parseInt(digits[13], 10)
+}
+
 export const isValidPhone = (phone: string): boolean => {
   const digits = onlyDigits(phone)
   return /^\+?55?\d{10,11}$/.test(digits)
@@ -40,6 +59,15 @@ export const isValidCEP = (cep: string): boolean => {
 export const formatCPF = (cpf: string): string => {
   const digits = onlyDigits(cpf)
   return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+}
+
+export const formatCNPJ = (cnpj: string): string => {
+  const digits = onlyDigits(cnpj).slice(0, 14)
+  return digits
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\d{4})(\d)/, '$1-$2')
 }
 
 export const formatPhone = (phone: string): string => {

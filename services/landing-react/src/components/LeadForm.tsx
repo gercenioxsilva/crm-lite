@@ -2,54 +2,49 @@ import { useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { 
-  Box, 
-  Button, 
-  TextField, 
-  FormControlLabel, 
-  Checkbox, 
-  Grid, 
-  Stepper, 
-  Step, 
-  StepLabel,
-  Typography,
+import {
   Alert,
-  CircularProgress
+  Box,
+  Button,
+  Checkbox,
+  CircularProgress,
+  FormControlLabel,
+  Grid,
+  MenuItem,
+  Step,
+  StepLabel,
+  Stepper,
+  TextField,
+  Typography,
 } from '@mui/material'
-import { GoogleSignIn } from './GoogleSignIn'
+import ApartmentOutlinedIcon from '@mui/icons-material/ApartmentOutlined'
+import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined'
+import ArrowForwardOutlinedIcon from '@mui/icons-material/ArrowForwardOutlined'
+import SendOutlinedIcon from '@mui/icons-material/SendOutlined'
 import { DynamicFormFields } from './DynamicFormFields'
 import { api } from '../services/api'
-import { isValidCPF, isValidPhone, isValidCEP, onlyDigits } from '../utils/validation'
+import { formatCNPJ, formatPhone, isValidCNPJ, isValidPhone, onlyDigits } from '../utils/validation'
 
-const step1Schema = z.object({
-  name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
-  email: z.string().email('E-mail inválido'),
-  company: z.string().optional(),
+const companySchema = z.object({
+  company: z.string().min(2, 'Informe a razao social ou nome fantasia'),
+  cnpj: z.string().min(1, 'Informe o CNPJ').refine(isValidCNPJ, 'CNPJ invalido'),
+  name: z.string().min(2, 'Informe o nome do contato'),
   jobTitle: z.string().optional(),
-  cpf: z.string().optional().refine((val) => !val || isValidCPF(val), 'CPF inválido'),
-  phone: z.string().optional().refine((val) => !val || isValidPhone(val), 'Celular inválido'),
-  birthDate: z.string().optional(),
+  email: z.string().email('E-mail invalido'),
+  phone: z.string().optional().refine((val) => !val || isValidPhone(val), 'Telefone invalido'),
 })
 
-const step2Schema = z.object({
+const opportunitySchema = z.object({
   leadValue: z.number().optional(),
   expectedCloseDate: z.string().optional(),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
-  cep: z.string().optional().refine((val) => !val || isValidCEP(val), 'CEP inválido'),
-  addressLine: z.string().optional(),
-  number: z.string().optional(),
-  complement: z.string().optional(),
-  neighborhood: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
-  monthlyIncome: z.number().optional(),
-  termsAccepted: z.boolean().refine((val) => val, 'Você deve aceitar os termos'),
-  consentLgpd: z.boolean().refine((val) => val, 'Você deve autorizar o tratamento de dados'),
+  termsAccepted: z.boolean().refine((val) => val, 'Voce deve aceitar os termos'),
+  consentLgpd: z.boolean().refine((val) => val, 'Voce deve autorizar o tratamento de dados'),
 })
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'GOOGLE_CLIENT_ID_REPLACE'
-
-const steps = ['Dados Pessoais', 'Informações Comerciais', 'Informações Adicionais']
+const steps = ['Empresa', 'Oportunidade', 'Complementos']
 
 export function LeadForm() {
   const [activeStep, setActiveStep] = useState(0)
@@ -57,471 +52,387 @@ export function LeadForm() {
   const [result, setResult] = useState<{ type: 'success' | 'error', message: string } | null>(null)
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, any>>({})
 
-  const step1Form = useForm({
-    resolver: zodResolver(step1Schema),
+  const companyForm = useForm({
+    resolver: zodResolver(companySchema),
     defaultValues: {
-      name: '',
-      email: '',
       company: '',
+      cnpj: '',
+      name: '',
       jobTitle: '',
-      cpf: '',
+      email: '',
       phone: '',
-      birthDate: '',
-    }
+    },
   })
 
-  const step2Form = useForm({
-    resolver: zodResolver(step2Schema),
+  const opportunityForm = useForm({
+    resolver: zodResolver(opportunitySchema),
     defaultValues: {
       leadValue: undefined,
       expectedCloseDate: '',
       priority: 'medium' as const,
-      cep: '',
-      addressLine: '',
-      number: '',
-      complement: '',
-      neighborhood: '',
       city: '',
       state: '',
-      monthlyIncome: undefined,
       termsAccepted: false,
       consentLgpd: false,
-    }
+    },
   })
 
   const handleNext = async () => {
-    if (activeStep === 0) {
-      const isValid = await step1Form.trigger()
-      if (isValid) {
-        setActiveStep(1)
-      }
-    } else if (activeStep === 1) {
-      const isValid = await step2Form.trigger()
-      if (isValid) {
-        setActiveStep(2)
-      }
-    }
+    const isValid = activeStep === 0
+      ? await companyForm.trigger()
+      : await opportunityForm.trigger()
+
+    if (isValid) setActiveStep(activeStep + 1)
   }
 
   const handleBack = () => {
-    setActiveStep(activeStep - 1)
+    setActiveStep(Math.max(activeStep - 1, 0))
+  }
+
+  const resetForm = () => {
+    companyForm.reset()
+    opportunityForm.reset()
+    setCustomFieldValues({})
+    setActiveStep(0)
+    setResult(null)
   }
 
   const handleFinalSubmit = async () => {
     setIsSubmitting(true)
     setResult(null)
 
-    const step1Data = step1Form.getValues()
-    const step2Data = step2Form.getValues()
+    const companyData = companyForm.getValues()
+    const opportunityData = opportunityForm.getValues()
+    const cnpj = onlyDigits(companyData.cnpj)
+
     const formData = {
-      ...step1Data,
-      ...step2Data,
-      cpf: step1Data.cpf ? onlyDigits(step1Data.cpf) : undefined,
-      phone: step1Data.phone ? onlyDigits(step1Data.phone) : undefined,
-      cep: step2Data.cep ? onlyDigits(step2Data.cep) : undefined,
-      state: step2Data.state?.toUpperCase() || undefined,
-      source: 'landing',
-      customFields: customFieldValues
+      name: companyData.name,
+      email: companyData.email,
+      phone: companyData.phone ? onlyDigits(companyData.phone) : undefined,
+      company: companyData.company,
+      jobTitle: companyData.jobTitle || undefined,
+      document: cnpj,
+      document_type: 'cnpj' as const,
+      leadValue: opportunityData.leadValue,
+      expectedCloseDate: opportunityData.expectedCloseDate || undefined,
+      priority: opportunityData.priority,
+      city: opportunityData.city || undefined,
+      state: opportunityData.state?.toUpperCase() || undefined,
+      termsAccepted: opportunityData.termsAccepted,
+      consentLgpd: opportunityData.consentLgpd,
+      source: 'landing-b2b-cnpj',
+      customFields: customFieldValues,
     }
 
     try {
       const response = await api.createLead(formData)
       setResult({
         type: response.success ? 'success' : 'error',
-        message: response.success ? 'Cadastro enviado com sucesso!' : response.error || 'Erro desconhecido'
+        message: response.success
+          ? 'Recebemos os dados da empresa. Nossa equipe entrara em contato.'
+          : response.error || 'Nao foi possivel enviar o cadastro.',
       })
-    } catch (error) {
-      setResult({ type: 'error', message: 'Erro de conexão' })
+
+      if (response.success) {
+        companyForm.reset()
+        opportunityForm.reset()
+        setCustomFieldValues({})
+        setActiveStep(0)
+      }
+    } catch {
+      setResult({ type: 'error', message: 'Erro de conexao. Tente novamente em alguns instantes.' })
     } finally {
       setIsSubmitting(false)
     }
-  }
-
-  const handleGoogleSignIn = async (credential: string) => {
-    setIsSubmitting(true)
-    setResult(null)
-
-    try {
-      const response = await api.createGoogleLead(credential)
-      setResult({
-        type: response.success ? 'success' : 'error',
-        message: response.success ? 'Inscrição com Google criada!' : response.error || 'Erro desconhecido'
-      })
-    } catch (error) {
-      setResult({ type: 'error', message: 'Erro de conexão' })
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const resetForm = () => {
-    step1Form.reset()
-    step2Form.reset()
-    setCustomFieldValues({})
-    setActiveStep(0)
-    setResult(null)
   }
 
   return (
     <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+        <Box
+          sx={{
+            width: 42,
+            height: 42,
+            borderRadius: 2,
+            display: 'grid',
+            placeItems: 'center',
+            color: 'primary.main',
+            bgcolor: 'rgba(20, 184, 166, 0.12)',
+            border: '1px solid rgba(20, 184, 166, 0.22)',
+          }}
+        >
+          <ApartmentOutlinedIcon />
+        </Box>
+        <Box>
+          <Typography variant="h2">Cadastro empresarial</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Informe os dados da empresa para avaliarmos o atendimento.
+          </Typography>
+        </Box>
+      </Box>
+
       <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
         {steps.map((label) => (
           <Step key={label}>
-            <StepLabel>{label}</StepLabel>
+            <StepLabel
+              sx={{
+                '& .MuiStepLabel-label': {
+                  display: { xs: 'none', sm: 'block' },
+                },
+              }}
+            >
+              {label}
+            </StepLabel>
           </Step>
         ))}
       </Stepper>
 
       {activeStep === 0 && (
-        <Box component="form" onSubmit={step1Form.handleSubmit(handleNext)}>
-          <GoogleSignIn onSuccess={handleGoogleSignIn} clientId={GOOGLE_CLIENT_ID} />
-          
+        <Box component="form" onSubmit={companyForm.handleSubmit(handleNext)}>
           <Grid container spacing={2}>
             <Grid item xs={12}>
               <Controller
-                name="name"
-                control={step1Form.control}
+                name="company"
+                control={companyForm.control}
                 render={({ field, fieldState }) => (
                   <TextField
                     {...field}
                     fullWidth
-                    label="Nome completo"
+                    label="Empresa"
+                    placeholder="Razao social ou nome fantasia"
                     error={!!fieldState.error}
                     helperText={fieldState.error?.message}
                   />
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12}>
               <Controller
+                name="cnpj"
+                control={companyForm.control}
+                render={({ field, fieldState }) => (
+                  <TextField
+                    {...field}
+                    fullWidth
+                    label="CNPJ"
+                    placeholder="00.000.000/0000-00"
+                    inputProps={{ maxLength: 18 }}
+                    onChange={(event) => field.onChange(formatCNPJ(event.target.value))}
+                    error={!!fieldState.error}
+                    helperText={fieldState.error?.message || 'Usado apenas para identificar o lead empresarial.'}
+                  />
+                )}
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <Controller
+                name="name"
+                control={companyForm.control}
+                render={({ field, fieldState }) => (
+                  <TextField
+                    {...field}
+                    fullWidth
+                    label="Contato responsavel"
+                    placeholder="Nome e sobrenome"
+                    error={!!fieldState.error}
+                    helperText={fieldState.error?.message}
+                  />
+                )}
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <Controller
+                name="jobTitle"
+                control={companyForm.control}
+                render={({ field }) => (
+                  <TextField {...field} fullWidth label="Cargo" placeholder="Ex.: Diretor, Compras, Financeiro" />
+                )}
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <Controller
                 name="email"
-                control={step1Form.control}
+                control={companyForm.control}
                 render={({ field, fieldState }) => (
                   <TextField
                     {...field}
                     fullWidth
                     type="email"
-                    label="E-mail"
+                    label="E-mail corporativo"
                     error={!!fieldState.error}
                     helperText={fieldState.error?.message}
                   />
                 )}
               />
             </Grid>
-            
-            <Grid item xs={12} sm={6}>
-              <Controller
-                name="company"
-                control={step1Form.control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    fullWidth
-                    label="Empresa"
-                    placeholder="Nome da empresa"
-                  />
-                )}
-              />
-            </Grid>
-            
-            <Grid item xs={12} sm={6}>
-              <Controller
-                name="jobTitle"
-                control={step1Form.control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    fullWidth
-                    label="Cargo"
-                    placeholder="Seu cargo na empresa"
-                  />
-                )}
-              />
-            </Grid>
-            
-            <Grid item xs={12} sm={6}>
-              <Controller
-                name="cpf"
-                control={step1Form.control}
-                render={({ field, fieldState }) => (
-                  <TextField
-                    {...field}
-                    fullWidth
-                    label="CPF"
-                    placeholder="Somente números"
-                    inputProps={{ maxLength: 11 }}
-                    error={!!fieldState.error}
-                    helperText={fieldState.error?.message}
-                  />
-                )}
-              />
-            </Grid>
-            
+
             <Grid item xs={12} sm={6}>
               <Controller
                 name="phone"
-                control={step1Form.control}
+                control={companyForm.control}
                 render={({ field, fieldState }) => (
                   <TextField
                     {...field}
                     fullWidth
-                    label="Celular"
-                    placeholder="Ex.: 5599999999999"
+                    label="Telefone ou WhatsApp"
+                    placeholder="(11) 99999-9999"
+                    onChange={(event) => field.onChange(formatPhone(event.target.value))}
                     error={!!fieldState.error}
                     helperText={fieldState.error?.message}
-                  />
-                )}
-              />
-            </Grid>
-            
-            <Grid item xs={12}>
-              <Controller
-                name="birthDate"
-                control={step1Form.control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    fullWidth
-                    type="date"
-                    label="Data de Nascimento"
-                    InputLabelProps={{ shrink: true }}
                   />
                 )}
               />
             </Grid>
           </Grid>
-          
-          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 3 }}>
+
+          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', mt: 3 }}>
             <Button onClick={resetForm}>Limpar</Button>
-            <Button type="submit" variant="contained">Continuar</Button>
+            <Button type="submit" variant="contained" endIcon={<ArrowForwardOutlinedIcon />}>Continuar</Button>
           </Box>
         </Box>
       )}
 
       {activeStep === 1 && (
-        <Box component="form" onSubmit={step2Form.handleSubmit(handleNext)}>
+        <Box component="form" onSubmit={opportunityForm.handleSubmit(handleNext)}>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6}>
               <Controller
                 name="leadValue"
-                control={step2Form.control}
+                control={opportunityForm.control}
                 render={({ field }) => (
                   <TextField
                     {...field}
                     fullWidth
                     type="number"
-                    label="Valor estimado do negócio (R$)"
-                    placeholder="Ex: 50000"
+                    label="Valor estimado do projeto"
+                    placeholder="Ex.: 50000"
                     inputProps={{ min: 0, step: 0.01 }}
-                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                    onChange={(event) => field.onChange(event.target.value ? Number(event.target.value) : undefined)}
                   />
                 )}
               />
             </Grid>
-            
+
+            <Grid item xs={12} sm={6}>
+              <Controller
+                name="priority"
+                control={opportunityForm.control}
+                render={({ field }) => (
+                  <TextField {...field} select fullWidth label="Urgencia">
+                    <MenuItem value="low">Baixa</MenuItem>
+                    <MenuItem value="medium">Media</MenuItem>
+                    <MenuItem value="high">Alta</MenuItem>
+                    <MenuItem value="urgent">Urgente</MenuItem>
+                  </TextField>
+                )}
+              />
+            </Grid>
+
             <Grid item xs={12} sm={6}>
               <Controller
                 name="expectedCloseDate"
-                control={step2Form.control}
+                control={opportunityForm.control}
                 render={({ field }) => (
-                  <TextField
-                    {...field}
-                    fullWidth
-                    type="date"
-                    label="Data esperada de fechamento"
-                    InputLabelProps={{ shrink: true }}
-                  />
+                  <TextField {...field} fullWidth type="date" label="Previsao de decisao" InputLabelProps={{ shrink: true }} />
                 )}
               />
             </Grid>
-            
-            <Grid item xs={12} sm={4}>
-              <Controller
-                name="cep"
-                control={step2Form.control}
-                render={({ field, fieldState }) => (
-                  <TextField
-                    {...field}
-                    fullWidth
-                    label="CEP"
-                    placeholder="Somente números"
-                    inputProps={{ maxLength: 8 }}
-                    error={!!fieldState.error}
-                    helperText={fieldState.error?.message}
-                  />
-                )}
-              />
-            </Grid>
-            
-            <Grid item xs={12} sm={8}>
-              <Controller
-                name="addressLine"
-                control={step2Form.control}
-                render={({ field }) => (
-                  <TextField {...field} fullWidth label="Logradouro" />
-                )}
-              />
-            </Grid>
-            
-            <Grid item xs={12} sm={4}>
-              <Controller
-                name="number"
-                control={step2Form.control}
-                render={({ field }) => (
-                  <TextField {...field} fullWidth label="Número" />
-                )}
-              />
-            </Grid>
-            
-            <Grid item xs={12} sm={8}>
-              <Controller
-                name="complement"
-                control={step2Form.control}
-                render={({ field }) => (
-                  <TextField {...field} fullWidth label="Complemento" />
-                )}
-              />
-            </Grid>
-            
-            <Grid item xs={12} sm={6}>
-              <Controller
-                name="neighborhood"
-                control={step2Form.control}
-                render={({ field }) => (
-                  <TextField {...field} fullWidth label="Bairro" />
-                )}
-              />
-            </Grid>
-            
+
             <Grid item xs={12} sm={4}>
               <Controller
                 name="city"
-                control={step2Form.control}
+                control={opportunityForm.control}
                 render={({ field }) => (
                   <TextField {...field} fullWidth label="Cidade" />
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12} sm={2}>
               <Controller
                 name="state"
-                control={step2Form.control}
+                control={opportunityForm.control}
                 render={({ field }) => (
-                  <TextField 
-                    {...field} 
-                    fullWidth 
-                    label="UF" 
-                    placeholder="UF"
-                    inputProps={{ maxLength: 2 }}
-                  />
+                  <TextField {...field} fullWidth label="UF" inputProps={{ maxLength: 2 }} />
                 )}
               />
             </Grid>
-            
-            <Grid item xs={12} sm={6}>
-              <Controller
-                name="monthlyIncome"
-                control={step2Form.control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    fullWidth
-                    type="number"
-                    label="Renda mensal (R$)"
-                    inputProps={{ min: 0, step: 0.01 }}
-                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
-                  />
-                )}
-              />
-            </Grid>
-            
-            <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-                Endereço (opcional)
-              </Typography>
-            </Grid>
-            
+
             <Grid item xs={12}>
               <Controller
                 name="termsAccepted"
-                control={step2Form.control}
+                control={opportunityForm.control}
                 render={({ field, fieldState }) => (
                   <Box>
                     <FormControlLabel
                       control={<Checkbox {...field} checked={field.value} />}
-                      label="Aceito os termos e condições"
+                      label="Aceito os termos de contato comercial"
                     />
-                    {fieldState.error && (
-                      <Typography variant="caption" color="error" display="block">
-                        {fieldState.error.message}
-                      </Typography>
-                    )}
+                    {fieldState.error && <Typography variant="caption" color="error">{fieldState.error.message}</Typography>}
                   </Box>
                 )}
               />
             </Grid>
-            
+
             <Grid item xs={12}>
               <Controller
                 name="consentLgpd"
-                control={step2Form.control}
+                control={opportunityForm.control}
                 render={({ field, fieldState }) => (
                   <Box>
                     <FormControlLabel
                       control={<Checkbox {...field} checked={field.value} />}
-                      label="Autorizo o tratamento de dados (LGPD)"
+                      label="Autorizo o tratamento dos dados para atendimento conforme LGPD"
                     />
-                    {fieldState.error && (
-                      <Typography variant="caption" color="error" display="block">
-                        {fieldState.error.message}
-                      </Typography>
-                    )}
+                    {fieldState.error && <Typography variant="caption" color="error">{fieldState.error.message}</Typography>}
                   </Box>
                 )}
               />
             </Grid>
           </Grid>
-          
-          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 3 }}>
-            <Button onClick={handleBack}>Voltar</Button>
-            <Button type="submit" variant="contained">Continuar</Button>
+
+          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', mt: 3 }}>
+            <Button onClick={handleBack} startIcon={<ArrowBackOutlinedIcon />}>Voltar</Button>
+            <Button type="submit" variant="contained" endIcon={<ArrowForwardOutlinedIcon />}>Continuar</Button>
           </Box>
         </Box>
       )}
 
       {activeStep === 2 && (
         <Box>
-          <DynamicFormFields 
+          <DynamicFormFields
             onFieldChange={(fieldName, value) => {
-              setCustomFieldValues(prev => ({ ...prev, [fieldName]: value }))
+              setCustomFieldValues((prev) => ({ ...prev, [fieldName]: value }))
             }}
             values={customFieldValues}
           />
-          
-          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 3 }}>
-            <Button onClick={handleBack}>Voltar</Button>
-            <Button 
+
+          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', mt: 3 }}>
+            <Button onClick={handleBack} startIcon={<ArrowBackOutlinedIcon />}>Voltar</Button>
+            <Button
               onClick={handleFinalSubmit}
-              variant="contained" 
+              variant="contained"
               disabled={isSubmitting}
-              startIcon={isSubmitting ? <CircularProgress size={20} /> : null}
+              startIcon={isSubmitting ? <CircularProgress size={20} /> : <SendOutlinedIcon />}
             >
-              {isSubmitting ? 'Cadastrando...' : 'Cadastrar'}
+              {isSubmitting ? 'Enviando...' : 'Enviar cadastro'}
             </Button>
           </Box>
-          
-          {result && (
-            <Alert severity={result.type} sx={{ mt: 2 }}>
-              {result.message}
-            </Alert>
-          )}
         </Box>
       )}
-      
+
+      {result && (
+        <Alert severity={result.type} sx={{ mt: 3 }}>
+          {result.message}
+        </Alert>
+      )}
+
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
-        Suas informações são protegidas conforme LGPD.
+        Dados protegidos e usados apenas para contato comercial e qualificacao do atendimento.
       </Typography>
     </Box>
   )

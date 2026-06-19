@@ -231,8 +231,13 @@ Publicas:
 
 - `GET /health`
 - `POST /api/public/leads`
-- `POST /api/public/leads/google`
 - `GET /api/public/custom-fields`
+
+Landing publica:
+
+- Captura leads B2B por CNPJ usando `document` + `document_type='cnpj'`.
+- Nao exibe botao de cadastro com Google ou login social.
+- Campos adicionais ativos em `custom_fields` sao renderizados com o mesmo tema visual da landing.
 
 Backoffice:
 
@@ -384,7 +389,7 @@ Publicar aplicacao:
 1. Fazer merge/push para `main`.
 2. Acompanhar `Deploy CRM to AWS`.
 
-Nesta fase, push para `develop` nao provisiona AWS. Essa decisao reduz custo evitando duplicar RDS, DocumentDB, NAT Gateway, ALB, ECS/Fargate e CloudFront.
+Nesta fase, push para `develop` nao provisiona AWS automaticamente. Essa decisao reduz custo evitando duplicar RDS, DocumentDB, NAT Gateway, ALB, ECS/Fargate e CloudFront. Para validar uma alteracao de `develop` no ambiente compartilhado, execute manualmente o workflow `Deploy CRM to AWS` escolhendo a branch `develop`; caso contrario, apenas `main` sera publicado automaticamente.
 
 Validacoes antes de push:
 
@@ -459,6 +464,7 @@ Antes de considerar pronto para AWS:
 - Erro de JSON invisivel no Vite/PostCSS: verificar BOM no `package.json`.
 - `whatsapp` sem `axios`: rodar `npm install` e commitar `package-lock.json`.
 - Assets React 404: nao usar `base` no Vite se Nginx/ALB servem a aplicacao na raiz do target.
+- Landing antiga em producao: se a tela mostrar "Abra sua conta", etapas "Dados Pessoais" ou botao Google, o ambiente esta servindo build antigo. Execute o workflow manual na branch correta ou publique `main` atualizado e aguarde invalidacao CloudFront.
 - Testes importando `application/use-cases` inexistente em `leads`: os testes devem exercitar as rotas HTTP reais.
 - Dockerfile com `npm install --omit=dev` antes do build TypeScript: instalar dependencias completas, buildar e depois usar `npm prune --omit=dev`.
 - Lambda Function URL CORS: usar `allow_methods = ["*"]`; `OPTIONS` excede a validacao da API de Function URL.
@@ -514,6 +520,7 @@ operacional, publicando apenas prod na AWS.
 - Antes de alterar Terraform/workflows, valide impacto em custo e deploy prod.
 - Antes de finalizar: npm run build:all, npm run test:leads, terraform validate se houver .tf.
 - Em AWS, toda conexao PostgreSQL deve usar `PGSSLMODE=require`; isso vale para migration, leads runtime, auth Lambda e scripts de bootstrap.
+- A landing publica deve permanecer focada em captacao B2B por CNPJ. Nao reintroduza botao Google/login social sem decisao explicita.
 
 === SKILLS DE ARQUITETURA ===
 

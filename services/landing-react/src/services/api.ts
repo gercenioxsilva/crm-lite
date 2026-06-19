@@ -14,42 +14,19 @@ export const api = {
       })
 
       const result = await response.json()
-      
+
       return {
         success: response.ok,
         data: result,
-        error: response.ok ? undefined : result.message || 'Erro ao criar lead'
+        error: response.ok
+          ? undefined
+          : [result.error, result.details || result.message].filter(Boolean).join(': ') || 'Erro ao criar lead',
       }
-    } catch (error) {
+    } catch {
       return {
         success: false,
-        error: 'Erro de conexão'
+        error: 'Erro de conexao',
       }
     }
   },
-
-  async createGoogleLead(credential: string): Promise<ApiResponse> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/public/leads/google`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ credential }),
-      })
-
-      const result = await response.json()
-      
-      return {
-        success: response.ok,
-        data: result,
-        error: response.ok ? undefined : result.message || 'Erro ao criar lead com Google'
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: 'Erro de conexão'
-      }
-    }
-  }
 }

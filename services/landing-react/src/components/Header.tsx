@@ -5,9 +5,9 @@ export function Header() {
     <AppBar 
       position="sticky" 
       sx={{ 
-        backgroundColor: 'rgba(15,15,16,.6)', 
+        backgroundColor: 'rgba(7,17,19,.68)',
         backdropFilter: 'saturate(140%) blur(10px)',
-        borderBottom: '1px solid #2A2A2B',
+        borderBottom: '1px solid rgba(148,163,184,.18)',
         boxShadow: 'none'
       }}
     >
@@ -18,8 +18,8 @@ export function Header() {
               width: 32, 
               height: 32, 
               borderRadius: 1, 
-              background: 'linear-gradient(135deg, #8A05BE, #b5179e)',
-              boxShadow: '0 6px 24px rgba(138,5,190,.35)'
+              background: 'linear-gradient(135deg, #14B8A6, #38BDF8)',
+              boxShadow: '0 6px 24px rgba(20,184,166,.26)'
             }} 
           />
           <Typography variant="h6" sx={{ fontWeight: 600, letterSpacing: 0.5 }}>
