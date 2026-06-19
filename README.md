@@ -237,6 +237,7 @@ Landing publica:
 
 - Captura leads B2B por CNPJ usando `document` + `document_type='cnpj'`.
 - Nao exibe botao de cadastro com Google ou login social.
+- Telefone comercial deve ser aceito apenas no formato `(xx) xxxxx-xxxx`; nao aceitar DDI, telefone fixo ou mascara diferente neste fluxo.
 - Campos adicionais ativos em `custom_fields` sao renderizados com o mesmo tema visual da landing.
 
 Backoffice:
@@ -522,6 +523,7 @@ operacional, publicando apenas prod na AWS.
 - Antes de finalizar: npm run build:all, npm run test:leads, terraform validate se houver .tf.
 - Em AWS, toda conexao PostgreSQL deve usar `PGSSLMODE=require`; isso vale para migration, leads runtime, auth Lambda e scripts de bootstrap.
 - A landing publica deve permanecer focada em captacao B2B por CNPJ. Nao reintroduza botao Google/login social sem decisao explicita.
+- Na landing publica, telefone deve ser validado e mascarado exclusivamente como `(xx) xxxxx-xxxx`.
 - No backoffice, toda chamada HTTP deve passar pelo `apiService` ou por `getApiUrl()`. Nunca use localhost hardcoded em componentes de tela.
 
 === SKILLS DE ARQUITETURA ===

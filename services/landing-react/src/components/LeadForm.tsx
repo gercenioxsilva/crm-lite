@@ -31,7 +31,7 @@ const companySchema = z.object({
   name: z.string().min(2, 'Informe o nome do contato'),
   jobTitle: z.string().optional(),
   email: z.string().email('E-mail invalido'),
-  phone: z.string().optional().refine((val) => !val || isValidPhone(val), 'Telefone invalido'),
+  phone: z.string().optional().refine((val) => !val || isValidPhone(val), 'Use o formato (xx) xxxxx-xxxx'),
 })
 
 const opportunitySchema = z.object({
@@ -108,7 +108,7 @@ export function LeadForm() {
     const formData = {
       name: companyData.name,
       email: companyData.email,
-      phone: companyData.phone ? onlyDigits(companyData.phone) : undefined,
+      phone: companyData.phone ? formatPhone(companyData.phone) : undefined,
       company: companyData.company,
       jobTitle: companyData.jobTitle || undefined,
       document: cnpj,
@@ -280,6 +280,7 @@ export function LeadForm() {
                     fullWidth
                     label="Telefone ou WhatsApp"
                     placeholder="(11) 99999-9999"
+                    inputProps={{ maxLength: 15 }}
                     onChange={(event) => field.onChange(formatPhone(event.target.value))}
                     error={!!fieldState.error}
                     helperText={fieldState.error?.message}
