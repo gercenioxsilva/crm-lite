@@ -20,7 +20,6 @@ import {
   Divider,
   Alert
 } from '@mui/material'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiService } from '../services/api'
 
 const leadSchema = z.object({
@@ -69,7 +68,6 @@ const sourceOptions = [
 export function LeadFormDialog({ open, onClose, lead, mode }: LeadFormDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const queryClient = useQueryClient()
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<LeadFormData>({
     resolver: zodResolver(leadSchema),
@@ -108,50 +106,18 @@ export function LeadFormDialog({ open, onClose, lead, mode }: LeadFormDialogProp
     }
   }, [lead, mode, reset])
 
-  const createLeadMutation = useMutation({
-    mutationFn: async (data: LeadFormData) => {
-      return apiService.createLead({
-        name: data.name,
-        email: data.email,
-        phone: data.phone || undefined,
-        company: data.company || undefined,
-        job_title: data.jobTitle || undefined,
-        lead_value: data.leadValue,
-        expected_close_date: data.expectedCloseDate || undefined,
-        priority: data.priority,
-        assigned_to: data.assignedTo || undefined,
-        source: data.source || 'backoffice',
-        monthly_income: data.monthlyIncome,
-      })
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] })
-      queryClient.invalidateQueries({ queryKey: ['pipeline-board'] })
-      onClose()
-      reset()
-    }
-  })
-
-  const updateLeadMutation = useMutation({
-    mutationFn: async (data: LeadFormData) => {
-      return apiService.updateLead(lead.id, {
-        name: data.name,
-        email: data.email,
-        phone: data.phone || undefined,
-        company: data.company || undefined,
-        job_title: data.jobTitle || undefined,
-        lead_value: data.leadValue,
-        expected_close_date: data.expectedCloseDate || undefined,
-        priority: data.priority,
-        assigned_to: data.assignedTo || undefined,
-        monthly_income: data.monthlyIncome,
-      })
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] })
-      queryClient.invalidateQueries({ queryKey: ['pipeline-board'] })
-      onClose()
-    }
+  const toApiPayload = (data: LeadFormData) => ({
+    name: data.name,
+    email: data.email,
+    phone: data.phone || undefined,
+    company: data.company || undefined,
+    job_title: data.jobTitle || undefined,
+    lead_value: data.leadValue,
+    expected_close_date: data.expectedCloseDate || undefined,
+    priority: data.priority,
+    assigned_to: data.assignedTo || undefined,
+    source: data.source || 'backoffice',
+    monthly_income: data.monthlyIncome,
   })
 
   const onSubmit = async (data: LeadFormData) => {
@@ -160,10 +126,12 @@ export function LeadFormDialog({ open, onClose, lead, mode }: LeadFormDialogProp
 
     try {
       if (mode === 'create') {
-        await createLeadMutation.mutateAsync(data)
+        await apiService.createLead(toApiPayload(data))
+        reset()
       } else {
-        await updateLeadMutation.mutateAsync(data)
+        await apiService.updateLead(lead.id, toApiPayload(data))
       }
+      onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido')
     } finally {
