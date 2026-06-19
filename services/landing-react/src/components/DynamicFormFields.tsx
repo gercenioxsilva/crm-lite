@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
+import { Box, Checkbox, FormControlLabel, Grid, MenuItem, TextField, Typography } from '@mui/material'
 
 interface CustomField {
   id: string
@@ -23,7 +24,7 @@ export const DynamicFormFields: React.FC<DynamicFormFieldsProps> = ({ onFieldCha
   useEffect(() => {
     const fetchCustomFields = async () => {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3000')
+        const apiUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:3000/api')
         const response = await fetch(`${apiUrl}/public/custom-fields`)
         if (response.ok) {
           const fields = await response.json()
@@ -38,108 +39,84 @@ export const DynamicFormFields: React.FC<DynamicFormFieldsProps> = ({ onFieldCha
   }, [])
 
   const renderField = (field: CustomField) => {
+    const value = values[field.name] || ''
     const commonProps = {
-      id: field.name,
-      name: field.name,
+      fullWidth: true,
+      label: field.label,
       required: field.is_required,
       placeholder: field.placeholder || '',
-      value: values[field.name] || '',
-      onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-        onFieldChange(field.name, e.target.value)
-      },
-      className: "w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+      helperText: field.help_text,
     }
 
-    switch (field.field_type) {
-      case 'text':
-        return <input type="text" {...commonProps} />
-      
-      case 'email':
-        return <input type="email" {...commonProps} />
-      
-      case 'phone':
-        return <input type="tel" {...commonProps} />
-      
-      case 'number':
-        return <input type="number" {...commonProps} />
-      
-      case 'date':
-        return <input type="date" {...commonProps} />
-      
-      case 'textarea':
-        return (
-          <textarea
-            {...commonProps}
-            rows={4}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none"
-          />
-        )
-      
-      case 'select':
-        return (
-          <select {...commonProps}>
-            <option value="">Selecione uma opção</option>
-            {field.options?.options?.map((option, index) => (
-              <option key={index} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        )
-      
-      case 'checkbox':
-        return (
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id={field.name}
-              name={field.name}
-              checked={values[field.name] || false}
-              onChange={(e) => onFieldChange(field.name, e.target.checked)}
-              className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500"
+    if (field.field_type === 'checkbox') {
+      return (
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={Boolean(values[field.name])}
+              onChange={(event) => onFieldChange(field.name, event.target.checked)}
             />
-            <label htmlFor={field.name} className="ml-2 text-sm text-gray-700">
-              {field.label}
-            </label>
-          </div>
-        )
-      
-      default:
-        return <input type="text" {...commonProps} />
+          }
+          label={field.label}
+        />
+      )
     }
+
+    if (field.field_type === 'select') {
+      return (
+        <TextField
+          {...commonProps}
+          select
+          value={value}
+          onChange={(event) => onFieldChange(field.name, event.target.value)}
+        >
+          <MenuItem value="">Selecione</MenuItem>
+          {field.options?.options?.map((option) => (
+            <MenuItem key={option} value={option}>
+              {option}
+            </MenuItem>
+          ))}
+        </TextField>
+      )
+    }
+
+    return (
+      <TextField
+        {...commonProps}
+        value={value}
+        type={field.field_type === 'phone' ? 'tel' : field.field_type}
+        multiline={field.field_type === 'textarea'}
+        rows={field.field_type === 'textarea' ? 4 : undefined}
+        onChange={(event) => onFieldChange(field.name, event.target.value)}
+      />
+    )
   }
 
   if (customFields.length === 0) {
-    return null
+    return (
+      <Box sx={{ p: 2, border: '1px dashed rgba(148,163,184,.32)', borderRadius: 2 }}>
+        <Typography variant="body2" color="text.secondary">
+          Nao ha campos adicionais obrigatorios para este cadastro.
+        </Typography>
+      </Box>
+    )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="border-t border-gray-200 pt-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Informações Adicionais
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {customFields.map((field) => (
-            <div key={field.id} className={field.field_type === 'textarea' ? 'md:col-span-2' : ''}>
-              {field.field_type !== 'checkbox' && (
-                <label htmlFor={field.name} className="block text-sm font-medium text-gray-700 mb-2">
-                  {field.label}
-                  {field.is_required && <span className="text-red-500 ml-1">*</span>}
-                </label>
-              )}
-              
-              {renderField(field)}
-              
-              {field.help_text && (
-                <p className="mt-1 text-sm text-gray-500">
-                  {field.help_text}
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+    <Box>
+      <Typography variant="h2" sx={{ mb: 1 }}>
+        Complementos do atendimento
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        Preencha os campos adicionais solicitados para acelerar a qualificacao.
+      </Typography>
+      <Grid container spacing={2}>
+        {customFields.map((field) => (
+          <Grid item xs={12} sm={field.field_type === 'textarea' ? 12 : 6} key={field.id}>
+            {renderField(field)}
+          </Grid>
+        ))}
+      </Grid>
+    </Box>
   )
 }
