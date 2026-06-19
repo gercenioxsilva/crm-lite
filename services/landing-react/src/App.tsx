@@ -22,7 +22,7 @@ function App() {
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', md: 'minmax(0, .9fr) minmax(480px, 1fr)' },
+              gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: 'minmax(0, .9fr) minmax(460px, 1fr)' },
               gap: { xs: 3, md: 5 },
               alignItems: 'center',
             }}
@@ -51,7 +51,7 @@ function App() {
               </Stack>
             </Box>
 
-            <Card>
+            <Card sx={{ minWidth: 0 }}>
               <CardContent sx={{ p: { xs: 2.25, sm: 3 } }}>
                 <LeadForm />
               </CardContent>

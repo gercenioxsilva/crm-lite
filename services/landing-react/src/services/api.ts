@@ -18,7 +18,9 @@ export const api = {
       return {
         success: response.ok,
         data: result,
-        error: response.ok ? undefined : result.error || result.message || 'Erro ao criar lead',
+        error: response.ok
+          ? undefined
+          : [result.error, result.details || result.message].filter(Boolean).join(': ') || 'Erro ao criar lead',
       }
     } catch {
       return {
