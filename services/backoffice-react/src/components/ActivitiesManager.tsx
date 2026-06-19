@@ -3,12 +3,12 @@ import {
   Box, Card, CardContent, Typography, Button, Dialog, DialogTitle,
   DialogContent, DialogActions, TextField, MenuItem, Select, FormControl,
   InputLabel, Table, TableBody, TableCell, TableContainer, TableHead,
-  TableRow, Paper, Chip, Grid
+  TableRow, Paper, Chip, Grid, Alert
 } from '@mui/material'
 import {
   Add, Phone, Email, VideoCall, Event, Note, CheckCircle, Cancel, Refresh
 } from '@mui/icons-material'
-import { apiService } from '../services/api'
+import { ApiError, apiService } from '../services/api'
 
 interface Activity {
   id: string
@@ -43,10 +43,29 @@ const outcomeOptions = [
   { value: 'clicked', label: 'Clique registrado' },
 ]
 
+type ActivityErrorDialog = {
+  title: string
+  message: string
+  code?: string
+  status?: number
+  details?: string
+}
+
+function formatErrorDetails(details: unknown): string | undefined {
+  if (!details) return undefined
+  if (typeof details === 'string') return details
+  try {
+    return JSON.stringify(details, null, 2)
+  } catch {
+    return String(details)
+  }
+}
+
 export function ActivitiesManager() {
   const [activities, setActivities] = useState<Activity[]>([])
   const [leads, setLeads] = useState<Lead[]>([])
   const [openDialog, setOpenDialog] = useState(false)
+  const [errorDialog, setErrorDialog] = useState<ActivityErrorDialog | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
   const [newActivity, setNewActivity] = useState({
@@ -85,7 +104,11 @@ export function ActivitiesManager() {
   const handleCreateActivity = async () => {
     try {
       if (!newActivity.leadId || !newActivity.description) {
-        alert('Por favor, selecione um lead e adicione uma descrição')
+        setErrorDialog({
+          title: 'Dados incompletos',
+          message: 'Selecione um lead e adicione uma descricao para registrar a atividade.',
+          code: 'CRM_ACTIVITY_INVALID_FORM',
+        })
         return
       }
 
@@ -115,7 +138,15 @@ export function ActivitiesManager() {
       await fetchData()
     } catch (err) {
       console.error('Error creating activity:', err)
-      alert('Erro ao criar atividade: ' + (err instanceof Error ? err.message : 'Erro desconhecido'))
+      setErrorDialog({
+        title: 'Nao foi possivel criar a atividade',
+        message: err instanceof Error
+          ? err.message
+          : 'Todo mundo erra dessa vez, foi os nossos engenheiros.',
+        code: err instanceof ApiError ? err.code : 'CRM_ACTIVITY_UI_FAILED',
+        status: err instanceof ApiError ? err.status : undefined,
+        details: err instanceof ApiError ? formatErrorDetails(err.details) : undefined,
+      })
     }
   }
 
@@ -442,6 +473,50 @@ export function ActivitiesManager() {
             disabled={!newActivity.leadId || !newActivity.description}
           >
             ✅ Criar Atividade
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(errorDialog)} onClose={() => setErrorDialog(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>{errorDialog?.title}</DialogTitle>
+        <DialogContent>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {errorDialog?.message || 'Todo mundo erra dessa vez, foi os nossos engenheiros.'}
+          </Alert>
+          {(errorDialog?.code || errorDialog?.status || errorDialog?.details) && (
+            <Box
+              sx={{
+                p: 2,
+                borderRadius: 1,
+                bgcolor: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.12)'
+              }}
+            >
+              {errorDialog?.code && (
+                <Typography variant="caption" display="block" color="text.secondary">
+                  Codigo: {errorDialog.code}
+                </Typography>
+              )}
+              {errorDialog?.status && (
+                <Typography variant="caption" display="block" color="text.secondary">
+                  HTTP: {errorDialog.status}
+                </Typography>
+              )}
+              {errorDialog?.details && (
+                <Typography
+                  variant="caption"
+                  component="pre"
+                  sx={{ mt: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-word', m: 0 }}
+                >
+                  {errorDialog.details}
+                </Typography>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setErrorDialog(null)} variant="contained">
+            Entendi
           </Button>
         </DialogActions>
       </Dialog>

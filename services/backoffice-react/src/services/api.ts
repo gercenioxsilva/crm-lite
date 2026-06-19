@@ -2,6 +2,20 @@ import { getApiUrl, getAuthUrl } from '../utils/config'
 
 const API_BASE_URL = getApiUrl()
 
+export class ApiError extends Error {
+  status: number
+  code?: string
+  details?: unknown
+
+  constructor(message: string, status: number, code?: string, details?: unknown) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.code = code
+    this.details = details
+  }
+}
+
 class ApiService {
   private getAuthHeaders() {
     const token = localStorage.getItem('auth_token')
@@ -32,7 +46,15 @@ class ApiService {
 
     if (!response.ok) {
       console.error(`API Error: ${response.status} - ${url}`, body)
-      throw new Error(`HTTP ${response.status}`)
+      let payload: any = null
+      try {
+        payload = body ? JSON.parse(body) : null
+      } catch {
+        payload = null
+      }
+
+      const message = payload?.message || payload?.error || `HTTP ${response.status}`
+      throw new ApiError(message, response.status, payload?.code, payload?.details || body)
     }
 
     if (!body) {

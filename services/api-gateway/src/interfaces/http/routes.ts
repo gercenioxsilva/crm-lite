@@ -2,6 +2,30 @@ import { FastifyInstance } from 'fastify';
 import jwt from 'jsonwebtoken';
 
 const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID || '00000000-0000-0000-0000-000000000001';
+const ALLOWED_ACTIVITY_TYPES = new Set(['call', 'email', 'meeting', 'whatsapp', 'sms', 'note', 'task']);
+const ALLOWED_ACTIVITY_OUTCOMES = new Set([
+  'interested',
+  'not_interested',
+  'callback',
+  'meeting_scheduled',
+  'no_answer',
+  'completed',
+  'sent',
+  'opened',
+  'clicked',
+]);
+
+function normalizeActivityType(type: unknown): string {
+  if (typeof type !== 'string') return 'note';
+  const value = type.trim();
+  return ALLOWED_ACTIVITY_TYPES.has(value) ? value : 'note';
+}
+
+function normalizeActivityOutcome(outcome: unknown): string | null {
+  if (typeof outcome !== 'string') return null;
+  const value = outcome.trim();
+  return ALLOWED_ACTIVITY_OUTCOMES.has(value) ? value : null;
+}
 
 // Auth middleware
 async function authMiddleware(request: any, reply: any) {
@@ -534,11 +558,21 @@ export async function registerRoutes(app: FastifyInstance){
     app.post('/api/backoffice/activities', {
       preHandler: [requireScope('leads:write')],
       schema: { tags: ['backoffice'], summary: 'Create activity', security: [{ bearerAuth: [] }] } as any
-    }, async (req) => {
+    }, async (req, reply: any) => {
       const body = (req.body as any) || {};
       
       try {
         console.log('Creating activity:', body);
+
+        if (!body.leadId || !body.description) {
+          reply.code(400);
+          return {
+            code: 'CRM_ACTIVITY_INVALID_PAYLOAD',
+            error: 'Invalid activity payload',
+            message: 'Informe um lead e uma descricao para registrar a atividade.',
+            details: { missing: ['leadId', 'description'].filter((field) => !body[field]) }
+          };
+        }
         
         const response = await fetch(`${process.env.LEADS_BASE_URL || 'http://leads:3020'}/activities`, {
           method: 'POST',
@@ -548,10 +582,10 @@ export async function registerRoutes(app: FastifyInstance){
           },
           body: JSON.stringify({
             lead_id: body.leadId,
-            type: body.type,
+            type: normalizeActivityType(body.type),
             subject: body.description?.substring(0, 100) || null,
             description: body.description,
-            outcome: body.outcome || null,
+            outcome: normalizeActivityOutcome(body.outcome),
             follow_up_required: body.follow_up_required || false,
             next_action: body.next_action || null,
             duration_minutes: body.duration_minutes || null,
@@ -562,7 +596,13 @@ export async function registerRoutes(app: FastifyInstance){
         if (!response.ok) {
           const errorText = await response.text();
           console.error('Error response from leads service:', errorText);
-          throw new Error(`HTTP ${response.status}: ${errorText}`);
+          reply.code(response.status === 400 || response.status === 404 ? response.status : 502);
+          return {
+            code: 'CRM_ACTIVITY_LEADS_SERVICE_FAILED',
+            error: 'Unable to create activity',
+            message: 'Todo mundo erra dessa vez, foi os nossos engenheiros.',
+            details: errorText || `Leads service HTTP ${response.status}`
+          };
         }
         
         const activity = await response.json();
@@ -590,9 +630,15 @@ export async function registerRoutes(app: FastifyInstance){
         }
         
         return activity;
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error creating activity:', error);
-        throw error;
+        reply.code(502);
+        return {
+          code: 'CRM_ACTIVITY_GATEWAY_FAILED',
+          error: 'Unable to create activity',
+          message: 'Todo mundo erra dessa vez, foi os nossos engenheiros.',
+          details: error.message
+        };
       }
     });
 

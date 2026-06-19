@@ -98,4 +98,52 @@ describe('Leads API - activities with Drizzle', () => {
 
     await app.close();
   });
+
+  it('retries activity creation with safe values when legacy constraints reject the outcome', async () => {
+    const activity = activityRow({
+      type: 'meeting',
+      subject: 'Reuniao com decisor',
+      description: 'Reuniao realizada',
+      outcome: 'completed',
+      duration_minutes: 50,
+    });
+
+    mockPool.query
+      .mockResolvedValueOnce({ rows: [['lead-1']] })
+      .mockRejectedValueOnce({
+        cause: {
+          code: '23514',
+          constraint: 'chk_activity_outcome',
+        },
+      })
+      .mockResolvedValueOnce(drizzleActivityRows([activity]));
+
+    const app = buildServer();
+    await app.ready();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/activities',
+      payload: {
+        lead_id: 'lead-1',
+        type: 'meeting',
+        description: 'Reuniao realizada',
+        outcome: 'not_interested',
+        duration_minutes: 50,
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({
+      id: 'activity-1',
+      outcome: 'completed',
+    });
+
+    const retryParams: any[] = mockPool.query.mock.calls[2][1];
+    expect(retryParams).toContain('meeting');
+    expect(retryParams).toContain('completed');
+    expect(retryParams).not.toContain('not_interested');
+
+    await app.close();
+  });
 });

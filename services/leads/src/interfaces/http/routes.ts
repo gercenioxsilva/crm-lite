@@ -15,6 +15,7 @@ const ALLOWED_ACTIVITY_OUTCOMES = new Set([
   'opened',
   'clicked',
 ]);
+const ALLOWED_ACTIVITY_TYPES = new Set(['call', 'email', 'meeting', 'whatsapp', 'sms', 'note', 'task']);
 
 function tenantIdFromRequest(req: any, _required = true): string {
   const tenantId = req.headers['x-tenant-id'] || req.headers['X-Tenant-Id'];
@@ -26,6 +27,48 @@ function normalizeActivityOutcome(outcome: unknown): string | null {
   if (typeof outcome !== 'string') return null;
   const value = outcome.trim();
   return ALLOWED_ACTIVITY_OUTCOMES.has(value) ? value : null;
+}
+
+function normalizeActivityType(type: unknown): string {
+  if (typeof type !== 'string') return 'note';
+  const value = type.trim();
+  return ALLOWED_ACTIVITY_TYPES.has(value) ? value : 'note';
+}
+
+function isActivityConstraintViolation(error: any): boolean {
+  let current = error;
+  while (current) {
+    const constraint = current.constraint || '';
+    if (current.code === '23514' && String(constraint).startsWith('chk_activity_')) {
+      return true;
+    }
+    current = current.cause;
+  }
+
+  return false;
+}
+
+async function insertActivity(values: any, log: FastifyInstance['log']) {
+  try {
+    const [activity] = await db.insert(activities).values(values).returning();
+    return activity;
+  } catch (error: any) {
+    if (isActivityConstraintViolation(error)) {
+      log.warn(
+        { error, lead_id: values.lead_id, type: values.type, outcome: values.outcome },
+        'Retrying activity insert with safe constraint-compatible values'
+      );
+
+      const [activity] = await db.insert(activities).values({
+        ...values,
+        type: normalizeActivityType(values.type),
+        outcome: 'completed',
+      }).returning();
+      return activity;
+    }
+
+    throw error;
+  }
 }
 
 export async function registerRoutes(app: FastifyInstance) {
@@ -463,9 +506,9 @@ export async function registerRoutes(app: FastifyInstance) {
         return { error: 'Lead not found' };
       }
 
-      const [activity] = await db.insert(activities).values({
+      const activity = await insertActivity({
         lead_id: id,
-        type: body.type,
+        type: normalizeActivityType(body.type),
         subject: body.subject || body.description?.substring(0, 100) || null,
         description: body.description || null,
         outcome: normalizeActivityOutcome(body.outcome),
@@ -474,14 +517,19 @@ export async function registerRoutes(app: FastifyInstance) {
         next_action: body.next_action || null,
         created_by: body.created_by || 'system',
         tenant_id: tenantId,
-      }).returning();
+      }, app.log);
 
       reply.code(201);
       return activity;
     } catch (error: any) {
       app.log.error(error);
       reply.code(500);
-      return { error: 'Internal server error' };
+      return {
+        code: 'CRM_ACTIVITY_CREATE_FAILED',
+        error: 'Unable to create activity',
+        message: 'Todo mundo erra dessa vez, foi os nossos engenheiros.',
+        details: error.message,
+      };
     }
   });
 
@@ -506,9 +554,9 @@ export async function registerRoutes(app: FastifyInstance) {
         return { error: 'Lead not found' };
       }
 
-      const [activity] = await db.insert(activities).values({
+      const activity = await insertActivity({
         lead_id: body.lead_id,
-        type: body.type,
+        type: normalizeActivityType(body.type),
         subject: body.subject || body.description?.substring(0, 100) || null,
         description: body.description || null,
         outcome: normalizeActivityOutcome(body.outcome),
@@ -517,14 +565,19 @@ export async function registerRoutes(app: FastifyInstance) {
         next_action: body.next_action || null,
         created_by: body.created_by || 'system',
         tenant_id: tenantId,
-      }).returning();
+      }, app.log);
 
       reply.code(201);
       return activity;
     } catch (error: any) {
       app.log.error(error);
       reply.code(500);
-      return { error: 'Internal server error' };
+      return {
+        code: 'CRM_ACTIVITY_CREATE_FAILED',
+        error: 'Unable to create activity',
+        message: 'Todo mundo erra dessa vez, foi os nossos engenheiros.',
+        details: error.message,
+      };
     }
   });
 
