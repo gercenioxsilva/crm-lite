@@ -105,6 +105,8 @@ resource "aws_cloudfront_distribution" "static_site" {
   default_root_object = "index.html"
   price_class         = "PriceClass_100"
 
+  aliases = each.key == "backoffice" ? [var.domain_name, var.www_domain_name] : []
+
   origin {
     origin_id                = "s3-${each.key}"
     domain_name              = aws_s3_bucket.static_site[each.key].bucket_regional_domain_name
@@ -199,10 +201,12 @@ resource "aws_cloudfront_distribution" "static_site" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+    acm_certificate_arn      = aws_acm_certificate_validation.main.certificate_arn
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
   }
 
-  depends_on = [aws_s3_bucket_policy.static_site]
+  depends_on = [aws_s3_bucket_policy.static_site, aws_acm_certificate_validation.main]
 
   tags = {
     Name        = "crm-${each.key}-${var.environment}"
